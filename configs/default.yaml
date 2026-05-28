@@ -1,0 +1,30 @@
+project:
+  name: medical-image-unet-segmentation
+  seed: 394867
+
+data:
+  raw_dir: data/raw
+  processed_dir: data/processed
+  splits_dir: data/splits
+  image_size: [256, 256]
+  patch_size: [256, 256]
+
+training:
+  batch_size: 8
+  epochs: 100
+  learning_rate: 0.0001
+  validation_split: 0.2
+  num_workers: 0
+
+model:
+  input_channels: 1
+  output_channels: 1
+  base_filters: 32
+  dropout_rate: 0.0
+
+outputs:
+  checkpoints_dir: models/checkpoints
+  final_model_dir: models/final
+  figures_dir: artifacts/figures
+  logs_dir: artifacts/logs
+  predictions_dir: artifacts/predictions
