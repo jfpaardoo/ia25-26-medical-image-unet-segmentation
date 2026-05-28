@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
+
+import yaml
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -26,3 +29,20 @@ DEFAULT_IMAGE_SIZE = (256, 256)
 DEFAULT_BATCH_SIZE = 8
 DEFAULT_EPOCHS = 100
 DEFAULT_SEED = 394867
+
+
+def load_yaml_config(config_path: Path) -> dict[str, Any]:
+	"""Load a YAML config file into a dictionary."""
+
+	with config_path.open("r", encoding="utf-8") as handle:
+		return yaml.safe_load(handle) or {}
+
+
+def ensure_output_dirs() -> None:
+	"""Ensure output directories exist for models and artifacts."""
+
+	CHECKPOINTS_DIR.mkdir(parents=True, exist_ok=True)
+	FINAL_MODELS_DIR.mkdir(parents=True, exist_ok=True)
+	FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+	LOGS_DIR.mkdir(parents=True, exist_ok=True)
+	PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
