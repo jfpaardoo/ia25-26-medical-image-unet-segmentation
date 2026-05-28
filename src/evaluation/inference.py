@@ -17,20 +17,37 @@ def _prepare_images(images: np.ndarray, model: keras.Model) -> np.ndarray:
     expected_channels = input_shape[-1] if input_shape is not None else None
 
     if images.ndim == 2:
+        if expected_channels not in (None, 1):
+            raise ValueError(
+                "Input channels do not match model expectation. "
+                f"Got 1, expected {expected_channels}."
+            )
         images = images[..., np.newaxis]
+        images = images[np.newaxis, ...]
+        return images
+
     if images.ndim == 3:
         if expected_channels is not None and images.shape[-1] == expected_channels:
             images = images[np.newaxis, ...]
-        else:
-            images = images[..., np.newaxis]
-            images = images[np.newaxis, ...]
-    if images.ndim == 4 and expected_channels is not None and images.shape[-1] != expected_channels:
-        raise ValueError(
-            "Input channels do not match model expectation. "
-            f"Got {images.shape[-1]}, expected {expected_channels}."
-        )
+            return images
+        if expected_channels not in (None, 1):
+            raise ValueError(
+                "Input channels do not match model expectation. "
+                f"Got 1, expected {expected_channels}."
+            )
+        images = images[..., np.newaxis]
+        return images
 
-    return images
+    if images.ndim == 4:
+        if expected_channels is not None and images.shape[-1] != expected_channels:
+            raise ValueError(
+                "Input channels do not match model expectation. "
+                f"Got {images.shape[-1]}, expected {expected_channels}."
+            )
+        return images
+
+    raise ValueError("Images must have 2, 3, or 4 dimensions.")
+
 
 
 def _postprocess_predictions(predictions: np.ndarray, threshold: float) -> np.ndarray:

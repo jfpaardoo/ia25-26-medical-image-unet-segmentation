@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src.config import CONFIGS_DIR, PREDICTIONS_DIR, load_yaml_config, ensure_output_dirs
+from src.config import CONFIGS_DIR, PREDICTIONS_DIR, PROJECT_ROOT, load_yaml_config
 from src.evaluation.inference import predict_mask
 
 
@@ -16,6 +16,17 @@ def _load_images(path: Path) -> np.ndarray:
     if "images" not in data:
         raise ValueError("NPZ file must contain an 'images' array.")
     return data["images"]
+
+
+def _resolve_output_dir(config: dict, key: str, default: Path) -> Path:
+    outputs = config.get("outputs", {})
+    raw_path = outputs.get(key)
+    if not raw_path:
+        return default
+    path = Path(raw_path)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path
 
 
 def main() -> None:
@@ -28,11 +39,11 @@ def main() -> None:
     parser.add_argument("--save-probabilities", action="store_true")
     args = parser.parse_args()
 
-    _ = load_yaml_config(args.config)
-    ensure_output_dirs()
+    config = load_yaml_config(args.config)
 
     images = _load_images(args.images_npz)
-    output_dir = args.output or PREDICTIONS_DIR
+    predictions_dir = _resolve_output_dir(config, "predictions_dir", PREDICTIONS_DIR)
+    output_dir = args.output or predictions_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
     result = predict_mask(

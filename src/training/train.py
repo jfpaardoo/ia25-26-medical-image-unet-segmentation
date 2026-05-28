@@ -7,7 +7,7 @@ from typing import Any, Optional
 
 import keras
 
-from src.config import FINAL_MODELS_DIR, CHECKPOINTS_DIR, LOGS_DIR, ensure_output_dirs
+from src.config import CHECKPOINTS_DIR, FINAL_MODELS_DIR, LOGS_DIR, PROJECT_ROOT
 from src.evaluation.metrics import DiceCoefficient, dice_loss, iou_score
 from src.models.unet import build_unet
 from src.training.callbacks import build_callbacks
@@ -21,6 +21,17 @@ def _resolve_input_shape(config: dict[str, Any]) -> tuple[int, int, int]:
 
 def _resolve_output_channels(config: dict[str, Any]) -> int:
     return int(config.get("model", {}).get("output_channels", 1))
+
+
+def _resolve_output_dir(config: dict[str, Any], key: str, default: Path) -> Path:
+    outputs = config.get("outputs", {})
+    raw_path = outputs.get(key)
+    if not raw_path:
+        return default
+    path = Path(raw_path)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path
 
 
 def train_model(
@@ -37,8 +48,6 @@ def train_model(
         raise ValueError("train_data must be provided. Pass a dataset or (x, y) tuple.")
 
     config = config or {}
-    ensure_output_dirs()
-
     training_cfg = config.get("training", {})
     model_cfg = config.get("model", {})
     base_filters = int(model_cfg.get("base_filters", 32))
@@ -73,11 +82,10 @@ def train_model(
     has_validation = val_data is not None or validation_split > 0.0
     if monitor is None:
         monitor = "val_dice" if has_validation else "loss"
-    callbacks = build_callbacks(
-        checkpoints_dir=CHECKPOINTS_DIR,
-        logs_dir=LOGS_DIR,
-        monitor=monitor,
-    )
+    checkpoints_dir = _resolve_output_dir(config, "checkpoints_dir", CHECKPOINTS_DIR)
+    logs_dir = _resolve_output_dir(config, "logs_dir", LOGS_DIR)
+    final_models_dir = _resolve_output_dir(config, "final_model_dir", FINAL_MODELS_DIR)
+    callbacks = build_callbacks(checkpoints_dir=checkpoints_dir, logs_dir=logs_dir, monitor=monitor)
 
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
@@ -99,8 +107,8 @@ def train_model(
 
     history = model.fit(train_data, **fit_kwargs)
 
-    FINAL_MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    final_path = FINAL_MODELS_DIR / "unet_final.keras"
+    final_models_dir.mkdir(parents=True, exist_ok=True)
+    final_path = final_models_dir / "unet_final.keras"
     model.save(final_path)
 
     return model, history
