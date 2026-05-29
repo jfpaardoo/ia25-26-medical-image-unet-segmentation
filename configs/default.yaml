@@ -8,6 +8,7 @@ data:
   splits_dir: data/splits
   image_size: [256, 256]
   patch_size: [256, 256]
+  mask_format: binary
 
 training:
   batch_size: 8

@@ -44,3 +44,21 @@ def test_discover_mask_suffix_and_root_masks(tmp_path: Path):
 
     assert ("case/imageA.png", "case/imageA_mask.png") in names
     assert ("nested/imageB.tif", "masks/nested/imageB.tif") in names
+
+
+def test_discover_does_not_cross_match_repeated_stems(tmp_path: Path):
+    root = tmp_path / "dataset3"
+
+    touch(root / "case_a" / "image.png")
+    touch(root / "case_a" / "image_mask.png")
+    touch(root / "case_b" / "image.png")
+    touch(root / "case_b" / "image_mask.png")
+
+    samples = discover_samples(root)
+    pairs = {
+        (s.image_path.relative_to(root).as_posix(), s.mask_path.relative_to(root).as_posix())
+        for s in samples
+    }
+
+    assert ("case_a/image.png", "case_a/image_mask.png") in pairs
+    assert ("case_b/image.png", "case_b/image_mask.png") in pairs

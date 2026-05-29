@@ -15,8 +15,9 @@ Convenciones (contrato de datos)
 
 - Extensiones admitidas: `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`.
 - Formato de máscara:
-  - Preferible: imágenes en escala de grises donde cada pixel es la etiqueta (0 para fondo, 1..N para clases).
-  - Si se usan PNG con paleta o colores, documentar en `configs/default.yaml` cómo mapear colores→clases.
+  - El contrato del pipeline se fija en `configs/default.yaml` con `mask_format`.
+  - Valores soportados por el preprocesado actual: `binary` y `grayscale`.
+  - Si se usan PNG con paleta o colores, documentar en `configs/default.yaml` cómo mapear colores→clases antes de llamar a `resize_pair(..., mask_format=...)`.
 
 - Tamaño de imágenes y máscaras:
   - No obligatorio en crudo; el pipeline de preprocesado deberá reescalar o extraer parches según `configs/default.yaml`.
@@ -35,4 +36,4 @@ Ejemplo de uso
 
 Notas
 - Si el dataset original requiere pasos adicionales (DICOM -> PNG, windowing), documentar el script de conversión en `data/README.md` y añadirlo a `scripts/`.
-- Actualiza `configs/default.yaml` con `image_size`, `mask_format` y `seed`.
+- `configs/default.yaml` ya debe fijar `image_size`, `mask_format` y `seed`.
