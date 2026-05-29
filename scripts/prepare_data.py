@@ -73,6 +73,15 @@ def _relative(path: Path, root: Path) -> str:
     return path.resolve().relative_to(root.resolve()).as_posix()
 
 
+def _infer_drive_split(path: Path) -> str | None:
+    parts = {part.lower() for part in path.parts}
+    if "training" in parts or "train" in parts:
+        return "train"
+    if "test" in parts or "testing" in parts:
+        return "test"
+    return None
+
+
 def _write_split(split_path: Path, items: list[dict]) -> None:
     split_path.parent.mkdir(parents=True, exist_ok=True)
     with split_path.open("w", encoding="utf-8") as f:
@@ -116,6 +125,28 @@ def _split_source_ids(source_ids: list[str], ratios: dict, rng: np.random.Genera
     return {"train": train_ids, "val": val_ids, "test": test_ids}
 
 
+def _split_official_drive_ids(source_ids: list[str], ratios: dict, rng: np.random.Generator) -> dict[str, set[str]]:
+    train_ratio = float(ratios.get("train", 0.8))
+    val_ratio = float(ratios.get("val", 0.2))
+    if train_ratio < 0 or val_ratio < 0:
+        raise ValueError("Split ratios must be non-negative")
+    total = train_ratio + val_ratio
+    if total <= 0:
+        raise ValueError("Split ratios must sum to a positive value")
+
+    arr = np.array(sorted(set(source_ids)), dtype=object)
+    rng.shuffle(arr)
+    n = len(arr)
+    n_train = int(round(n * (train_ratio / total)))
+    if n_train > n:
+        n_train = n
+    n_val = n - n_train
+
+    train_ids = set(arr[:n_train].tolist())
+    val_ids = set(arr[n_train : n_train + n_val].tolist())
+    return {"train": train_ids, "val": val_ids, "test": set()}
+
+
 def _validate_prepared_dataset(project_root: Path, processed_dir: Path, splits_dir: Path, patch_size: tuple[int, int]) -> None:
     images_dir = processed_dir / "images"
     masks_dir = processed_dir / "masks"
@@ -132,11 +163,14 @@ def _validate_prepared_dataset(project_root: Path, processed_dir: Path, splits_d
             raise RuntimeError(f"Missing split file: {path}")
 
     ph, pw = patch_size
-    for path in split_files.values():
+    for name, path in split_files.items():
         lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
         if not lines:
-            raise RuntimeError(f"Split file is empty: {path}")
-        for line in lines[:5]:
+            if name != "test":
+                raise RuntimeError(f"Split file is empty: {path}")
+            continue
+
+        for line in lines:
             image_rel, mask_rel = line.split(",", maxsplit=1)
             image_path = project_root / image_rel
             mask_path = project_root / mask_rel
@@ -177,10 +211,14 @@ def run_preparation(config_path: Path) -> None:
     aug_enabled = bool(aug_cfg.get("enabled", True))
     aug_names = list(aug_cfg.get("transforms", ["hflip", "vflip", "rot90"]))
     split_cfg = data_cfg.get("split", {"train": 0.7, "val": 0.15, "test": 0.15})
+    use_official_drive_split = bool(data_cfg.get("use_official_drive_split", True))
 
     samples = discover_samples(raw_dir)
     if not samples:
-        raise RuntimeError(f"No image-mask pairs found under {raw_dir}")
+        raise RuntimeError(
+            f"No image-mask pairs found under {raw_dir}. "
+            "Run `python scripts/download_drive.py` first and make sure the DRIVE files are in data/raw."
+        )
 
     if processed_dir.exists():
         shutil.rmtree(processed_dir)
@@ -214,8 +252,11 @@ def run_preparation(config_path: Path) -> None:
 
         sample_rel = sample.image_path.relative_to(raw_dir)
         source_id = sample_rel.with_suffix("").as_posix().replace("/", "__")
+        official_split = _infer_drive_split(sample.image_path) if use_official_drive_split else None
 
-        for aug_name, aug_fn in transforms:
+        sample_transforms = transforms if official_split != "test" else [transforms[0]]
+
+        for aug_name, aug_fn in sample_transforms:
             image_aug, mask_aug = aug_fn(image_resized, mask_resized)
             image_patches, mask_patches, _, _ = extract_patches(
                 image_aug,
@@ -236,6 +277,7 @@ def run_preparation(config_path: Path) -> None:
                     {
                         "source_id": source_id,
                         "augmentation": aug_name,
+                        "official_split": official_split,
                         "image_path": _relative(image_path, project_root),
                         "mask_path": _relative(mask_path, project_root),
                     }
@@ -246,12 +288,22 @@ def run_preparation(config_path: Path) -> None:
             "No processed patches were generated. Check that data/raw contains readable image-mask pairs."
         )
 
-    split_ids = _split_source_ids([r["source_id"] for r in records], split_cfg, rng)
-    split_records = {
-        "train": [r for r in records if r["source_id"] in split_ids["train"]],
-        "val": [r for r in records if r["source_id"] in split_ids["val"]],
-        "test": [r for r in records if r["source_id"] in split_ids["test"]],
-    }
+    if use_official_drive_split and any(r["official_split"] in {"train", "test"} for r in records):
+        train_source_ids = [r["source_id"] for r in records if r["official_split"] == "train"]
+        test_source_ids = [r["source_id"] for r in records if r["official_split"] == "test"]
+        split_ids = _split_official_drive_ids(train_source_ids, split_cfg, rng)
+        split_records = {
+            "train": [r for r in records if r["official_split"] == "train" and r["source_id"] in split_ids["train"]],
+            "val": [r for r in records if r["official_split"] == "train" and r["source_id"] in split_ids["val"]],
+            "test": [r for r in records if r["official_split"] == "test" and r["source_id"] in test_source_ids],
+        }
+    else:
+        split_ids = _split_source_ids([r["source_id"] for r in records], split_cfg, rng)
+        split_records = {
+            "train": [r for r in records if r["source_id"] in split_ids["train"]],
+            "val": [r for r in records if r["source_id"] in split_ids["val"]],
+            "test": [r for r in records if r["source_id"] in split_ids["test"]],
+        }
 
     _write_split(splits_dir / "train.txt", split_records["train"])
     _write_split(splits_dir / "val.txt", split_records["val"])
@@ -268,6 +320,7 @@ def run_preparation(config_path: Path) -> None:
         "image_size": list(image_size),
         "patch_size": list(patch_size),
         "patch_stride": list(patch_stride),
+        "use_official_drive_split": use_official_drive_split,
         "augmentation": {"enabled": aug_enabled, "transforms": aug_names},
     }
     (splits_dir / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")

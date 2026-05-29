@@ -52,8 +52,10 @@ def validate_prepared(project_root: Path) -> None:
 
         lines = [line.strip() for line in split_path.read_text(encoding='utf-8').splitlines() if line.strip()]
         print(f'{split_name}: {len(lines)} entries')
-        if not lines:
+        if not lines and split_name != 'test.txt':
             raise RuntimeError(f'Empty split file: {split_path.as_posix()}')
+        if not lines:
+            continue
 
         for line in lines:
             image_rel, mask_rel = line.split(',', maxsplit=1)

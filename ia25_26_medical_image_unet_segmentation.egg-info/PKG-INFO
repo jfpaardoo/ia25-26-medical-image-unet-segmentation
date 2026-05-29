@@ -1,3 +1,10 @@
+Metadata-Version: 2.4
+Name: ia25-26-medical-image-unet-segmentation
+Version: 0.1.0
+Summary: Medical image segmentation pipeline with U-Net
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+
 # ia25-26-medical-image-unet-segmentation
 
 Repositorio base para el trabajo de segmentación de imágenes médicas con redes convolucionales y arquitectura U-Net.
@@ -135,7 +142,7 @@ python -m pip install -e .
 
 ## Preparación del dataset
 
-Este proyecto utiliza el **DRIVE 2004 (Digital Retinal Images for Vessel Extraction)**, un conjunto de 40 imágenes de fondo de ojo dividido oficialmente en 20 imágenes de entrenamiento y 20 de prueba. En este repositorio, solo las 20 imágenes de `training/` aportan ground truth supervisado de vasos; el conjunto `test/` se conserva para inferencia o inspección visual.
+Este proyecto utiliza el **DRIVE 2004 (Digital Retinal Images for Vessel Extraction)**, un conjunto de 40 imágenes de fondo de ojo dividido oficialmente en 20 imágenes de entrenamiento y 20 de prueba. El dataset incluye máscaras de campo de visión y segmentaciones manuales de vasos sanguíneos; la segmentación manual es el ground truth para entrenar y evaluar el modelo.
 
 La referencia clásica del dataset es: Staal J, Abramoff MD, Niemeijer M, Viergever MA, van Ginneken B. *Ridge-based vessel segmentation in color images of the retina.* IEEE Transactions on Medical Imaging. 2004;23(4):501-509.
 
@@ -149,17 +156,17 @@ La referencia clásica del dataset es: Staal J, Abramoff MD, Niemeijer M, Vierge
 python -m pip install kagglehub
 python scripts/download_drive.py
 
-# 2. Preprocesar: normalización, parcheado 256×256 y particiones reproducibles
+# 2. Preprocesar: normalización, parcheado 256×256 y particiones oficiales
 python scripts/prepare_data.py
 
 # 3. (Opcional) Validar el pipeline con una demo visual
 python scripts/demo_pipeline.py
 ```
 
-Tras la ejecución, el pipeline genera parches de 256×256 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) a partir del split etiquetado de `training/` y deja `data/splits/test.txt` vacío porque DRIVE no incluye máscaras de vasos para el test oficial en este paquete.
+Tras la ejecución, el pipeline genera parches de 256×256 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) respetando el split oficial DRIVE y reservando el conjunto de prueba para evaluación posterior.
 
 El aumento de datos (flip horizontal, flip vertical, rotación 90°) se aplica solo sobre las imágenes de entrenamiento, evitando fuga de datos entre particiones.
 
 ## Estado actual
 
-El pipeline de datos está completamente implementado para DRIVE 2004: descarga automática del dataset, preprocesado (normalización, máscaras manuales de training, parcheado 256×256), aumento de datos y generación de particiones reproducibles. El siguiente paso es el entrenamiento de la U-Net.
+El pipeline de datos está completamente implementado para DRIVE 2004: descarga automática del dataset, preprocesado (normalización, segmentaciones manuales, parcheado 256×256), aumento de datos y generación de particiones reproducibles respetando el split oficial. El siguiente paso es el entrenamiento de la U-Net.
