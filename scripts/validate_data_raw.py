@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import cv2
 
 # ensure repo root is on sys.path so `src` package can be imported
 repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -17,6 +18,26 @@ def validate_raw(root: Path) -> int:
     for s in samples:
         print(s.image_path.as_posix(), '->', s.mask_path.as_posix())
     print('Total raw pairs:', len(samples))
+
+    invalid_files: list[str] = []
+    for s in samples:
+        image_size = s.image_path.stat().st_size if s.image_path.exists() else -1
+        mask_size = s.mask_path.stat().st_size if s.mask_path.exists() else -1
+
+        image = cv2.imread(str(s.image_path), cv2.IMREAD_UNCHANGED)
+        mask = cv2.imread(str(s.mask_path), cv2.IMREAD_UNCHANGED)
+
+        if image_size <= 0 or image is None:
+            invalid_files.append(f'image: {s.image_path.as_posix()}')
+        if mask_size <= 0 or mask is None:
+            invalid_files.append(f'mask: {s.mask_path.as_posix()}')
+
+    if invalid_files:
+        print('Invalid raw files detected:')
+        for item in invalid_files:
+            print('-', item)
+        raise RuntimeError('Raw dataset contains empty or unreadable files')
+
     return len(samples)
 
 

@@ -20,6 +20,7 @@ Los documentos revisados implican, como mínimo, estas piezas de trabajo:
 - [docs/proyecto/segmentación_imágenes_médicas.pdf](docs/proyecto/segmentación_imágenes_médicas.pdf)
 - [docs/teoria/Redes_neuronales_(Contenido_teórico).pdf](docs/teoria/Redes_neuronales_(Contenido_teórico).pdf)
 - [notebooks/Keras.ipynb](notebooks/Keras.ipynb)
+- [Breast Ultrasound Images Dataset (BUSI) en Kaggle](https://www.kaggle.com/datasets/aryashah2k/breast-ultrasound-images-dataset)
 
 ### Resumen técnico de la documentación
 
@@ -131,6 +132,41 @@ Para mantener la dependencia mínima, cualquier cambio de formato debe pasar pri
 python -m pip install -r requirements.txt
 ```
 
+## Preparación del dataset
+
+Este proyecto utiliza el **Breast Ultrasound Images Dataset (BUSI)**, un conjunto de 780 ecografías mamarias con sus máscaras de segmentación asociadas, publicado por Al-Dhabyani *et al.* en 2020.
+
+> **Cita**: Al-Dhabyani W, Gomaa M, Khaled H, Fahmy A. *Dataset of breast ultrasound images.* Data in Brief. 2020 Feb;28:104863. DOI: [10.1016/j.dib.2019.104863](https://doi.org/10.1016/j.dib.2019.104863)
+
+Del dataset original se emplean únicamente las clases **benigno** (437 imágenes) y **maligno** (210 imágenes), sumando **647 pares imagen-máscara**. La clase *normal* se excluye porque sus máscaras están vacías y no aportan información para segmentación. Las imágenes que poseen varias máscaras (`_mask.png`, `_mask_1.png`, etc.) se fusionan mediante un OR lógico.
+
+### Pasos para descargar y preparar los datos
+
+> [!IMPORTANT]
+> Los archivos de datos están excluidos del repositorio (`.gitignore`). Cualquier persona que clone el repo debe ejecutar estos comandos para regenerarlos localmente.
+
+```bash
+# 1. Descargar el dataset BUSI desde Kaggle (requiere kagglehub)
+python scripts/download_busi.py
+
+# 2. Preprocesar: normalización, parcheado 256×256 y particiones
+python scripts/prepare_data.py
+
+# 3. (Opcional) Validar el pipeline con una demo visual
+python scripts/demo_pipeline.py
+```
+
+Tras la ejecución, el pipeline genera **2 588 parches** de 256×256 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) repartidos en:
+
+| Partición   | Parches |
+|-------------|--------:|
+| Train       |   1 812 |
+| Validación  |     388 |
+| Test        |     388 |
+| **Total**   | **2 588** |
+
+El aumento de datos (flip horizontal, flip vertical, rotación 90°) se aplica **después** de dividir por `source_id`, evitando fuga de datos entre particiones.
+
 ## Estado actual
 
-Este repositorio contiene ya la base de carpetas y módulos para empezar a implementar el proyecto, pero todavía no incluye el pipeline completo de entrenamiento ni el dataset.
+El pipeline de datos está completamente implementado: descarga automática del dataset BUSI, preprocesado (normalización, fusión de máscaras, parcheado 256×256), aumento de datos y generación de particiones reproducibles. El siguiente paso es el entrenamiento de la U-Net.

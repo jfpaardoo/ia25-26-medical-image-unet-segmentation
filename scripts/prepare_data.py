@@ -5,11 +5,17 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
 import yaml
+
+# Ensure repo root is importable when running as: python scripts/prepare_data.py
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from src.data.dataset import SegmentationSample, discover_samples
 from src.data.patching import extract_patches
@@ -157,6 +163,9 @@ def run_preparation(config_path: Path) -> None:
     patch_stride = tuple(int(v) for v in data_cfg.get("patch_stride", list(patch_size)))
     mask_format = str(data_cfg.get("mask_format", "binary"))
 
+    model_cfg = cfg.get("model", {})
+    target_channels = int(model_cfg.get("input_channels", 1))
+
     aug_cfg = data_cfg.get("augmentation", {})
     aug_enabled = bool(aug_cfg.get("enabled", True))
     aug_names = list(aug_cfg.get("transforms", ["hflip", "vflip", "rot90"]))
@@ -190,6 +199,7 @@ def run_preparation(config_path: Path) -> None:
             mask_raw,
             target_size=image_size,
             mask_format=mask_format,
+            target_channels=target_channels,
         )
         image_resized = normalize_image(image_resized)
         if image_resized.ndim == 2:

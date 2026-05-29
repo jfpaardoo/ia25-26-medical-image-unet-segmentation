@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.data.preprocessing import resize_pair, normalize_image, apply_mask_format
+from src.data.preprocessing import resize_pair, normalize_image, apply_mask_format, to_grayscale
 
 
 def test_resize_and_mask_alignment():
@@ -41,3 +41,49 @@ def test_normalize_image():
     norm2 = normalize_image(arr_float)
     assert norm2.dtype == np.float32
     assert np.allclose(norm2, arr_float)
+
+
+def test_to_grayscale_from_rgb():
+    rgb = np.random.randint(0, 256, size=(10, 10, 3), dtype=np.uint8)
+    gray = to_grayscale(rgb)
+    assert gray.ndim == 2
+    assert gray.shape == (10, 10)
+
+
+def test_to_grayscale_already_gray():
+    gray = np.random.randint(0, 256, size=(10, 10), dtype=np.uint8)
+    result = to_grayscale(gray)
+    assert result.ndim == 2
+    np.testing.assert_array_equal(result, gray)
+
+
+def test_to_grayscale_single_channel():
+    single = np.random.randint(0, 256, size=(10, 10, 1), dtype=np.uint8)
+    result = to_grayscale(single)
+    assert result.ndim == 2
+    np.testing.assert_array_equal(result, single[:, :, 0])
+
+
+def test_resize_pair_target_channels_1():
+    """RGB image should be converted to grayscale when target_channels=1."""
+    img = np.random.randint(0, 256, size=(50, 50, 3), dtype=np.uint8)
+    mask = np.zeros((50, 50), dtype=np.uint8)
+
+    img_r, mask_r = resize_pair(img, mask, (32, 32), target_channels=1)
+
+    assert img_r.ndim == 2
+    assert img_r.shape == (32, 32)
+    assert mask_r.shape == (32, 32)
+
+
+def test_resize_pair_target_channels_3():
+    """Grayscale image should be converted to 3 channels when target_channels=3."""
+    img = np.random.randint(0, 256, size=(50, 50), dtype=np.uint8)
+    mask = np.zeros((50, 50), dtype=np.uint8)
+
+    img_r, mask_r = resize_pair(img, mask, (32, 32), target_channels=3)
+
+    assert img_r.ndim == 3
+    assert img_r.shape == (32, 32, 3)
+    assert mask_r.shape == (32, 32)
+
