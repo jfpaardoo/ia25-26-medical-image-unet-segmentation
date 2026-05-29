@@ -1,5 +1,6 @@
 tensorflow>=2.16
 keras>=3.0
+kagglehub>=0.3.0
 numpy>=1.26
 pandas>=2.2
 scikit-learn>=1.4

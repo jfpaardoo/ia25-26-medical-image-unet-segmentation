@@ -27,7 +27,16 @@ def _pad_to_fit(array: np.ndarray, patch_size: tuple[int, int], stride: tuple[in
     pad_h = max(out_h - h, 0)
     pad_w = max(out_w - w, 0)
     pad_spec = ((0, pad_h), (0, pad_w)) + ((0, 0),) * (array.ndim - 2)
-    return np.pad(array, pad_spec, mode="constant")
+
+    # Prefer reflected padding to avoid creating artificial zero borders.
+    spatial_shape = array.shape[:2]
+    if all(dim > 1 for dim in spatial_shape):
+        try:
+            return np.pad(array, pad_spec, mode="reflect")
+        except ValueError:
+            pass
+
+    return np.pad(array, pad_spec, mode="edge")
 
 
 def extract_patches(image, mask, patch_size, stride=None):

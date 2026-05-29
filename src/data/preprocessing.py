@@ -82,8 +82,13 @@ def resize_pair(image, mask, target_size, mask_format="binary",
     # Channel adjustment
     if target_channels == 1:
         resized_img = to_grayscale(resized_img)
-    elif target_channels == 3 and resized_img.ndim == 2:
-        resized_img = cv2.cvtColor(resized_img, cv2.COLOR_GRAY2BGR)
+    elif target_channels == 3:
+        if resized_img.ndim == 2:
+            resized_img = cv2.cvtColor(resized_img, cv2.COLOR_GRAY2BGR)
+        elif resized_img.ndim == 3 and resized_img.shape[2] == 1:
+            resized_img = cv2.cvtColor(resized_img[:, :, 0], cv2.COLOR_GRAY2BGR)
+        elif resized_img.ndim == 3 and resized_img.shape[2] == 4:
+            resized_img = cv2.cvtColor(resized_img, cv2.COLOR_BGRA2BGR)
 
     return resized_img, resized_mask
 

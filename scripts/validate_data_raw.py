@@ -48,13 +48,14 @@ def validate_prepared(project_root: Path) -> None:
     for split_name in split_files:
         split_path = splits_dir / split_name
         if not split_path.exists():
-            print(f'Missing split file: {split_path.as_posix()}')
-            continue
+            raise RuntimeError(f'Missing split file: {split_path.as_posix()}')
 
         lines = [line.strip() for line in split_path.read_text(encoding='utf-8').splitlines() if line.strip()]
         print(f'{split_name}: {len(lines)} entries')
+        if not lines:
+            raise RuntimeError(f'Empty split file: {split_path.as_posix()}')
 
-        for line in lines[:3]:
+        for line in lines:
             image_rel, mask_rel = line.split(',', maxsplit=1)
             image_path = project_root / image_rel
             mask_path = project_root / mask_rel

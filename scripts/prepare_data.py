@@ -57,10 +57,15 @@ def _augmentations(enabled: bool, names: list[str]) -> list[tuple[str, callable]
     }
 
     out = list(base)
+    unknown: list[str] = []
     for name in names:
         key = str(name).strip().lower()
         if key in supported:
             out.append((key, supported[key]))
+        else:
+            unknown.append(str(name))
+    if unknown:
+        raise ValueError(f"Unsupported augmentation transform(s): {', '.join(unknown)}")
     return out
 
 
@@ -79,6 +84,8 @@ def _split_source_ids(source_ids: list[str], ratios: dict, rng: np.random.Genera
     train_ratio = float(ratios.get("train", 0.7))
     val_ratio = float(ratios.get("val", 0.15))
     test_ratio = float(ratios.get("test", 0.15))
+    if train_ratio < 0 or val_ratio < 0 or test_ratio < 0:
+        raise ValueError("Split ratios must be non-negative")
     total = train_ratio + val_ratio + test_ratio
     if total <= 0:
         raise ValueError("Split ratios must sum to a positive value")
@@ -123,12 +130,12 @@ def _validate_prepared_dataset(project_root: Path, processed_dir: Path, splits_d
     for name, path in split_files.items():
         if not path.exists():
             raise RuntimeError(f"Missing split file: {path}")
-        if name == "train" and not path.read_text(encoding="utf-8").strip():
-            raise RuntimeError("train split is empty")
 
     ph, pw = patch_size
     for path in split_files.values():
         lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        if not lines:
+            raise RuntimeError(f"Split file is empty: {path}")
         for line in lines[:5]:
             image_rel, mask_rel = line.split(",", maxsplit=1)
             image_path = project_root / image_rel

@@ -147,6 +147,7 @@ Del dataset original se emplean únicamente las clases **benigno** (437 imágene
 
 ```bash
 # 1. Descargar el dataset BUSI desde Kaggle (requiere kagglehub)
+python -m pip install kagglehub
 python scripts/download_busi.py
 
 # 2. Preprocesar: normalización, parcheado 256×256 y particiones

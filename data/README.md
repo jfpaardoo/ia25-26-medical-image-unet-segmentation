@@ -14,6 +14,7 @@ El proyecto emplea el **Breast Ultrasound Images Dataset (BUSI)**, publicado por
 
 ```bash
 # Descargar el dataset desde Kaggle (usa kagglehub)
+python -m pip install kagglehub
 python scripts/download_busi.py
 
 # Preprocesar y generar parches + particiones

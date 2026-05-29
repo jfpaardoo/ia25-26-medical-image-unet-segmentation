@@ -21,6 +21,23 @@ def test_extract_patches_with_padding_and_stride():
     assert len(positions) == img_p.shape[0]
 
 
+def test_extract_patches_uses_reflective_padding():
+    image = np.array([[1, 2], [3, 4]], dtype=np.float32)
+    mask = np.array([[0, 1], [1, 0]], dtype=np.uint8)
+
+    img_p, mask_p, positions, padded_shape = extract_patches(
+        image,
+        mask,
+        patch_size=(3, 3),
+        stride=(3, 3),
+    )
+
+    assert padded_shape == (3, 3)
+    assert positions == [(0, 0)]
+    assert img_p[0, 2, 2] == image[0, 0]
+    assert mask_p[0, 2, 2] == mask[0, 0]
+
+
 def test_reconstruct_from_overlapping_patches():
     image = np.arange(36, dtype=np.float32).reshape(6, 6)
     mask = image.astype(np.uint8)

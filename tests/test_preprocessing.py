@@ -87,3 +87,21 @@ def test_resize_pair_target_channels_3():
     assert img_r.shape == (32, 32, 3)
     assert mask_r.shape == (32, 32)
 
+
+def test_resize_pair_target_channels_3_handles_single_channel_input():
+    img = np.random.randint(0, 256, size=(50, 50, 1), dtype=np.uint8)
+    mask = np.zeros((50, 50), dtype=np.uint8)
+
+    img_r, _ = resize_pair(img, mask, (32, 32), target_channels=3)
+
+    assert img_r.shape == (32, 32, 3)
+
+
+def test_resize_pair_target_channels_3_handles_bgra_input():
+    img = np.random.randint(0, 256, size=(50, 50, 4), dtype=np.uint8)
+    mask = np.zeros((50, 50), dtype=np.uint8)
+
+    img_r, _ = resize_pair(img, mask, (32, 32), target_channels=3)
+
+    assert img_r.shape == (32, 32, 3)
+
