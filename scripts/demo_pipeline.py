@@ -5,7 +5,7 @@ funciona correctamente, **sin depender del modelo U-Net** (parte de Diego).
 
 Genera las siguientes figuras en ``artifacts/figures/``:
 
-1. ``demo_01_raw_samples.png``     — Muestras crudas del dataset BUSI
+1. ``demo_01_raw_samples.png``     — Muestras crudas del dataset DRIVE 2004
 2. ``demo_02_preprocessing.png``   — Redimensionado + grayscale + normalización
 3. ``demo_03_augmentations.png``   — Aumentos de datos aplicados
 4. ``demo_04_patching.png``        — Parcheado y reconstrucción
@@ -64,7 +64,7 @@ def demo_raw_samples(samples, n: int = 6) -> None:
     print("  -> Generando demo_01_raw_samples.png ...")
     subset = samples[:n]
     fig, axes = plt.subplots(2, n, figsize=(3.2 * n, 6.4))
-    fig.suptitle("1 - Muestras crudas del dataset BUSI", fontsize=14, y=0.98)
+    fig.suptitle("1 - Muestras crudas del dataset DRIVE 2004", fontsize=14, y=0.98)
 
     for i, sample in enumerate(subset):
         img, msk = _load_raw(sample)
@@ -381,7 +381,7 @@ def main() -> None:
     if not samples:
         raise SystemExit(
             "No se encontraron pares imagen-máscara en data/raw/.\n"
-            "Ejecuta primero: python scripts/download_busi.py"
+            "Ejecuta primero: python scripts/download_drive.py"
         )
     print(f"\nDescubiertos {len(samples)} pares imagen-máscara en data/raw/\n")
 

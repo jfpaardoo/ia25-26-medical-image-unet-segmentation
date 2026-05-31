@@ -28,6 +28,24 @@ def test_discover_images_and_masks_dirs(tmp_path: Path):
     assert ("img2.jpg", "img2.jpg") in pairs
 
 
+def test_discover_nested_training_and_test_dirs(tmp_path: Path):
+    root = tmp_path / "drive"
+
+    touch(root / "training" / "images" / "training_01.png")
+    touch(root / "training" / "masks" / "training_01.png")
+    touch(root / "test" / "images" / "test_01.png")
+    touch(root / "test" / "masks" / "test_01.png")
+
+    samples = discover_samples(root)
+    pairs = {
+        (s.image_path.relative_to(root).as_posix(), s.mask_path.relative_to(root).as_posix())
+        for s in samples
+    }
+
+    assert ("training/images/training_01.png", "training/masks/training_01.png") in pairs
+    assert ("test/images/test_01.png", "test/masks/test_01.png") in pairs
+
+
 def test_discover_mask_suffix_and_root_masks(tmp_path: Path):
     root = tmp_path / "dataset2"
 

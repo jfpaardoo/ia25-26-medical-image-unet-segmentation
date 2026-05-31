@@ -10,13 +10,14 @@ data:
   patch_size: [256, 256]
   patch_stride: [256, 256]
   mask_format: binary
+  use_official_drive_split: true
   augmentation:
     enabled: true
     transforms: [hflip, vflip, rot90]
   split:
-    train: 0.7
-    val: 0.15
-    test: 0.15
+    train: 0.8
+    val: 0.2
+    test: 0.0
 
 training:
   batch_size: 8
