@@ -8,12 +8,12 @@ data:
   splits_dir: data/splits
   image_size: [256, 256]
   patch_size: [256, 256]
-  patch_stride: [256, 256]
+  patch_stride: [64, 64]
   mask_format: binary
   use_official_drive_split: true
   augmentation:
     enabled: true
-    transforms: [hflip, vflip, rot90]
+    transforms: [hflip, vflip, rot90, noise, contrast]
   split:
     train: 0.8
     val: 0.2
@@ -22,7 +22,8 @@ data:
 training:
   batch_size: 8
   epochs: 100
-  learning_rate: 0.0001
+  learning_rate: 0.0005
+  loss: dice
   validation_split: 0.2
   num_workers: 0
 
@@ -30,7 +31,9 @@ model:
   input_channels: 1
   output_channels: 1
   base_filters: 32
-  dropout_rate: 0.0
+  depth: 5
+  use_batch_norm: true
+  dropout_rate: 0.1
 
 outputs:
   checkpoints_dir: models/checkpoints

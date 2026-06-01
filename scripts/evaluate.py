@@ -15,7 +15,11 @@ def _load_npz(path: Path) -> tuple[np.ndarray, np.ndarray]:
     data = np.load(path)
     if "images" not in data or "masks" not in data:
         raise ValueError("NPZ file must contain 'images' and 'masks' arrays.")
-    return data["images"], data["masks"]
+    images = data["images"]
+    masks = data["masks"]
+    if masks.ndim == 3:
+        masks = masks[..., None]
+    return images, masks
 
 
 def main() -> None:

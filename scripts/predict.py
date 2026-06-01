@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 import numpy as np
+from PIL import Image
 
 from src.config import CONFIGS_DIR, PREDICTIONS_DIR, PROJECT_ROOT, load_yaml_config
 from src.evaluation.inference import predict_mask
@@ -58,7 +59,13 @@ def main() -> None:
         np.savez_compressed(output_dir / "predictions.npz", masks=masks, probabilities=probabilities)
     else:
         masks = result
-        np.savez_compressed(output_dir / "predictions.npz", masks=masks)
+
+    for idx, mask in enumerate(masks):
+        mask_img = (mask.squeeze() * 255).astype(np.uint8)
+        file_path = output_dir / f"pred_{idx + 1:03d}.png"
+        Image.fromarray(mask_img).save(file_path)
+        
+    print(f"Saved {len(masks)} prediction images to {output_dir}")
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ def build_callbacks(
     checkpoints_dir: Path,
     logs_dir: Path,
     monitor: str = "val_dice",
-    patience: int = 12,
+    patience: int = 15,
     save_best_only: bool = True,
 ) -> list[keras.callbacks.Callback]:
     """Build callbacks for checkpointing and early stopping."""
@@ -29,6 +29,14 @@ def build_callbacks(
             monitor=monitor,
             mode=mode,
             save_best_only=save_best_only,
+        ),
+        keras.callbacks.ReduceLROnPlateau(
+            monitor=monitor,
+            mode=mode,
+            factor=0.5,
+            patience=6,
+            min_lr=1e-6,
+            verbose=1,
         ),
         keras.callbacks.EarlyStopping(
             monitor=monitor,

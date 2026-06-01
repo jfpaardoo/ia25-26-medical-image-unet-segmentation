@@ -34,7 +34,8 @@ def _pad_to_fit(array: np.ndarray, patch_size: tuple[int, int], stride: tuple[in
         try:
             return np.pad(array, pad_spec, mode="reflect")
         except ValueError:
-            pass
+            # Reflect padding can fail for tiny arrays; fall back to edge padding.
+            return np.pad(array, pad_spec, mode="edge")
 
     return np.pad(array, pad_spec, mode="edge")
 

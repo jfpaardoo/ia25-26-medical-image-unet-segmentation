@@ -54,6 +54,8 @@ def _augmentations(enabled: bool, names: list[str]) -> list[tuple[str, callable]
         "hflip": lambda image, mask: (np.fliplr(image).copy(), np.fliplr(mask).copy()),
         "vflip": lambda image, mask: (np.flipud(image).copy(), np.flipud(mask).copy()),
         "rot90": lambda image, mask: (np.rot90(image, 1).copy(), np.rot90(mask, 1).copy()),
+        "noise": lambda image, mask: (np.clip(image + np.random.normal(0, 0.05, image.shape), 0, 1).astype(np.float32), mask.copy()),
+        "contrast": lambda image, mask: (np.clip(image * 1.2, 0, 1).astype(np.float32), mask.copy()),
     }
 
     out = list(base)
@@ -199,10 +201,11 @@ def run_preparation(config_path: Path) -> None:
     processed_dir = project_root / str(data_cfg.get("processed_dir", "data/processed"))
     splits_dir = project_root / str(data_cfg.get("splits_dir", "data/splits"))
 
-    image_size = tuple(int(v) for v in data_cfg.get("image_size", [256, 256]))
+    configured_image_size = tuple(int(v) for v in data_cfg.get("image_size", [256, 256]))
     patch_size = tuple(int(v) for v in data_cfg.get("patch_size", [256, 256]))
     patch_stride = tuple(int(v) for v in data_cfg.get("patch_stride", list(patch_size)))
     mask_format = str(data_cfg.get("mask_format", "binary"))
+    min_foreground = float(data_cfg.get("patch_min_foreground", 0.0))
 
     model_cfg = cfg.get("model", {})
     target_channels = int(model_cfg.get("input_channels", 1))
@@ -242,7 +245,7 @@ def run_preparation(config_path: Path) -> None:
         image_resized, mask_resized = resize_pair(
             image_raw,
             mask_raw,
-            target_size=image_size,
+            target_size=image_raw.shape[:2],
             mask_format=mask_format,
             target_channels=target_channels,
         )
@@ -267,6 +270,14 @@ def run_preparation(config_path: Path) -> None:
 
             for idx in range(image_patches.shape[0]):
                 patch_id = f"{source_id}__{aug_name}__p{idx:04d}"
+                # filter patches by minimum foreground ratio to avoid many empty patches
+                mask_arr = mask_patches[idx]
+                if mask_arr.ndim == 3 and mask_arr.shape[-1] == 1:
+                    mask_arr = mask_arr[..., 0]
+                fg_ratio = float((mask_arr > 0).sum()) / float(mask_arr.shape[0] * mask_arr.shape[1])
+                if fg_ratio < min_foreground:
+                    continue
+
                 image_path = processed_dir / "images" / f"{patch_id}.npy"
                 mask_path = processed_dir / "masks" / f"{patch_id}.npy"
 
@@ -317,7 +328,7 @@ def run_preparation(config_path: Path) -> None:
         "num_val": len(split_records["val"]),
         "num_test": len(split_records["test"]),
         "seed": seed,
-        "image_size": list(image_size),
+        "image_size": list(configured_image_size),
         "patch_size": list(patch_size),
         "patch_stride": list(patch_stride),
         "use_official_drive_split": use_official_drive_split,
