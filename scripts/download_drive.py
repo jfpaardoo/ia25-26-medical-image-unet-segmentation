@@ -28,7 +28,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 RAW_DIR = REPO_ROOT / "data" / "raw"
-KAGGLE_DATASET_ID = "andrewmvd/drive-digital-retinal-images-for-vessel-extraction"
+KAGGLE_DATASET_ID = "zionfuo/drive2004"
 
 
 def _download_dataset() -> Path:
@@ -112,13 +112,21 @@ def _find_drive_file(directory: Path, prefix: str, *, include: tuple[str, ...] =
 def _organize_split(split_root: Path, split_name: str) -> dict[str, int]:
     images_src = split_root / "images"
     primary_masks_src = split_root / "1st_manual"
+    secondary_masks_src = split_root / "2nd_manual"
     fov_src = split_root / "mask"
     split_dir = RAW_DIR / split_name
     images_dst = split_dir / "images"
-    masks_dst = split_dir / "masks"
     fov_dst = split_dir / "fov_masks"
 
-    for directory in (images_dst, masks_dst, fov_dst):
+    if split_name == "test":
+        masks_expert1_dst = split_dir / "masks_expert1"
+        masks_expert2_dst = split_dir / "masks_expert2"
+        directories_to_create = [images_dst, fov_dst, masks_expert1_dst, masks_expert2_dst]
+    else:
+        masks_dst = split_dir / "masks"
+        directories_to_create = [images_dst, fov_dst, masks_dst]
+
+    for directory in directories_to_create:
         if directory.exists():
             shutil.rmtree(directory)
         directory.mkdir(parents=True, exist_ok=True)
@@ -127,6 +135,7 @@ def _organize_split(split_root: Path, split_name: str) -> dict[str, int]:
     mask_count = 0
     missing_primary_masks: list[str] = []
     missing_fov_masks: list[str] = []
+    missing_secondary_masks: list[str] = []
 
     for image_path in sorted(images_src.rglob("*")):
         if not image_path.is_file():
@@ -140,11 +149,20 @@ def _organize_split(split_root: Path, split_name: str) -> dict[str, int]:
 
         mask_path = _find_drive_file(primary_masks_src, prefix, include=("manual1", "manual"))
         if mask_path is not None:
-            _write_png(_binary_mask(mask_path), masks_dst / f"{image_path.stem}.png")
+            if split_name == "test":
+                _write_png(_binary_mask(mask_path), masks_expert1_dst / f"{image_path.stem}.png")
+            else:
+                _write_png(_binary_mask(mask_path), masks_dst / f"{image_path.stem}.png")
             mask_count += 1
         else:
-            if split_name == "training":
-                missing_primary_masks.append(image_path.name)
+            missing_primary_masks.append(image_path.name)
+
+        if split_name == "test":
+            mask2_path = _find_drive_file(secondary_masks_src, prefix, include=("manual2", "manual"))
+            if mask2_path is not None:
+                _write_png(_binary_mask(mask2_path), masks_expert2_dst / f"{image_path.stem}.png")
+            else:
+                missing_secondary_masks.append(image_path.name)
 
         fov_path = _find_drive_file(fov_src, prefix, include=("mask",))
         if fov_path is not None:
@@ -154,7 +172,7 @@ def _organize_split(split_root: Path, split_name: str) -> dict[str, int]:
 
     if image_count != 20:
         raise RuntimeError(f"Expected 20 images in DRIVE {split_name}, found {image_count}")
-    if split_name == "training" and mask_count != 20:
+    if mask_count != 20:
         raise RuntimeError(f"Expected 20 primary masks in DRIVE {split_name}, found {mask_count}")
     if missing_primary_masks:
         raise RuntimeError(
@@ -163,6 +181,10 @@ def _organize_split(split_root: Path, split_name: str) -> dict[str, int]:
     if missing_fov_masks:
         raise RuntimeError(
             f"Missing FOV masks in DRIVE {split_name}: {', '.join(sorted(missing_fov_masks))}"
+        )
+    if split_name == "test" and missing_secondary_masks:
+        raise RuntimeError(
+            f"Missing secondary masks in DRIVE {split_name}: {', '.join(sorted(missing_secondary_masks))}"
         )
 
     return {"images": image_count, "masks": mask_count}
@@ -190,6 +212,8 @@ def main() -> None:
     print(f"  {RAW_DIR / 'training' / 'fov_masks'}/")
     print(f"  {RAW_DIR / 'test' / 'images'}/")
     print(f"  {RAW_DIR / 'test' / 'fov_masks'}/")
+    print(f"  {RAW_DIR / 'test' / 'masks_expert1'}/")
+    print(f"  {RAW_DIR / 'test' / 'masks_expert2'}/")
     print("\nYou can now run:")
     print("    python scripts/prepare_data.py")
 

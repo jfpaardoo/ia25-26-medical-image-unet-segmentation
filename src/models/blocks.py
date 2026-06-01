@@ -24,7 +24,7 @@ def conv_block(
         conv_name = f"{name}_conv{idx + 1}" if name else None
         bn_name = f"{name}_bn{idx + 1}" if name else None
         act_name = f"{name}_act{idx + 1}" if name else None
-        x = layers.Conv2D(filters, kernel_size, padding=padding, name=conv_name)(x)
+        x = layers.Conv2D(filters, kernel_size, padding=padding, kernel_initializer="he_normal", name=conv_name)(x)
         if use_batch_norm:
             x = layers.BatchNormalization(name=bn_name)(x)
         x = layers.Activation(activation, name=act_name)(x)
@@ -76,11 +76,11 @@ def decoder_block(
 
     up_name = f"{name}_up" if name else None
     if use_transpose:
-        x = layers.Conv2DTranspose(filters, 2, strides=2, padding="same", name=up_name)(x)
+        x = layers.Conv2DTranspose(filters, 2, strides=2, padding="same", kernel_initializer="he_normal", name=up_name)(x)
     else:
         x = layers.UpSampling2D(size=(2, 2), name=up_name)(x)
         conv_name = f"{name}_upconv" if name else None
-        x = layers.Conv2D(filters, 2, padding="same", name=conv_name)(x)
+        x = layers.Conv2D(filters, 2, padding="same", kernel_initializer="he_normal", name=conv_name)(x)
 
     concat_name = f"{name}_concat" if name else None
     x = layers.Concatenate(name=concat_name)([x, skip])

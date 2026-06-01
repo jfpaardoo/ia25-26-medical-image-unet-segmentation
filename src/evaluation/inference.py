@@ -14,6 +14,8 @@ from .metrics import DiceCoefficient, dice_coefficient, dice_loss, iou_score
 def _prepare_images(images: np.ndarray, model: keras.Model) -> np.ndarray:
     images = np.asarray(images, dtype=np.float32)
     input_shape = model.input_shape
+    if isinstance(input_shape, (list, tuple)) and input_shape and isinstance(input_shape[0], (list, tuple)):
+        input_shape = input_shape[0]
     expected_channels = input_shape[-1] if input_shape is not None else None
 
     if images.ndim == 2:
@@ -27,14 +29,21 @@ def _prepare_images(images: np.ndarray, model: keras.Model) -> np.ndarray:
         return images
 
     if images.ndim == 3:
-        if expected_channels is not None and images.shape[-1] == expected_channels:
+        if expected_channels is not None:
+            if images.shape[-1] == expected_channels:
+                images = images[np.newaxis, ...]
+                return images
+            if expected_channels != 1:
+                raise ValueError(
+                    "Input channels do not match model expectation. "
+                    f"Got {images.shape[-1]}, expected {expected_channels}."
+                )
+            images = images[..., np.newaxis]
+            return images
+
+        if images.shape[-1] in (1, 3):
             images = images[np.newaxis, ...]
             return images
-        if expected_channels not in (None, 1):
-            raise ValueError(
-                "Input channels do not match model expectation. "
-                f"Got 1, expected {expected_channels}."
-            )
         images = images[..., np.newaxis]
         return images
 
