@@ -65,6 +65,17 @@ def _postprocess_predictions(predictions: np.ndarray, threshold: float) -> np.nd
     return np.argmax(predictions, axis=-1).astype(np.uint8)
 
 
+def _as_reference_masks(masks: np.ndarray | Iterable[np.ndarray]) -> list[np.ndarray]:
+    if isinstance(masks, np.ndarray):
+        return [np.asarray(masks)]
+    if isinstance(masks, (list, tuple)):
+        reference_masks = [np.asarray(mask) for mask in masks]
+        if not reference_masks:
+            raise ValueError("At least one reference mask array is required.")
+        return reference_masks
+    return [np.asarray(masks)]
+
+
 def load_model(model_path: Path | str, compile: bool = False) -> keras.Model:
     """Load a serialized Keras model from disk."""
 
@@ -101,19 +112,24 @@ def predict_mask(
 def evaluate_model(
     model_or_path: keras.Model | Path | str,
     images: np.ndarray,
-    masks: np.ndarray,
+    masks: np.ndarray | Iterable[np.ndarray],
     threshold: float = 0.5,
     metrics: Optional[Iterable] = None,
 ) -> dict[str, float]:
-    """Run inference and compute metrics over prepared arrays."""
+    """Run inference and compute metrics over prepared arrays.
+
+    If multiple reference mask arrays are provided, each metric is computed
+    against every reference and the resulting scores are averaged.
+    """
 
     if metrics is None:
         metrics = [dice_coefficient, iou_score]
 
-    masks = np.asarray(masks)
+    reference_masks = _as_reference_masks(masks)
     pred_masks = predict_mask(model_or_path, images, threshold=threshold)
     results: dict[str, float] = {}
     for metric in metrics:
         name = getattr(metric, "__name__", metric.__class__.__name__)
-        results[name] = float(metric(masks, pred_masks))
+        scores = [float(metric(reference_mask, pred_masks)) for reference_mask in reference_masks]
+        results[name] = float(np.mean(scores))
     return results
