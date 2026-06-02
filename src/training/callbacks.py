@@ -12,7 +12,7 @@ def build_callbacks(
     checkpoints_dir: Path,
     logs_dir: Path,
     monitor: str = "val_dice",
-    patience: int = 15,
+    patience: int = 20,
     save_best_only: bool = True,
 ) -> list[keras.callbacks.Callback]:
     """Build callbacks for checkpointing and early stopping."""

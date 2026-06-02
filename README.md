@@ -13,6 +13,7 @@ Los documentos revisados implican, como mínimo, estas piezas de trabajo:
 - Implementación de una U-Net con camino encoder/decoder y conexiones de salto.
 - Entrenamiento reproducible, con validación y guardado del modelo en formato `.keras`.
 - Evaluación con métricas de segmentación, especialmente DICE score.
+- En DRIVE, comparación del test contra las dos máscaras expertas y promedio final de ambas métricas.
 - Generación de resultados visuales y un informe final con formato de artículo.
 - Trazabilidad del experimento: configuración reproducible, checkpoints y modelo final en `.keras`.
 
@@ -197,7 +198,7 @@ python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/def
 
 ## Preparación del dataset
 
-Este proyecto utiliza el **DRIVE 2004 (Digital Retinal Images for Vessel Extraction)**, un conjunto de 40 imágenes de fondo de ojo dividido oficialmente en 20 imágenes de entrenamiento y 20 de prueba. En este repositorio, solo las 20 imágenes de `training/` aportan ground truth supervisado de vasos; el conjunto `test/` se conserva para inferencia o inspección visual.
+Este proyecto utiliza el **DRIVE 2004 (Digital Retinal Images for Vessel Extraction)**, un conjunto de 40 imágenes de fondo de ojo dividido oficialmente en 20 imágenes de entrenamiento y 20 de prueba. En este repositorio, las 20 imágenes de `training/` aportan ground truth supervisado de vasos; el conjunto `test/` conserva dos segmentaciones expertas y se usa para evaluación promediando ambas referencias.
 
 La referencia clásica del dataset es: Staal J, Abramoff MD, Niemeijer M, Viergever MA, van Ginneken B. *Ridge-based vessel segmentation in color images of the retina.* IEEE Transactions on Medical Imaging. 2004;23(4):501-509.
 
@@ -236,7 +237,7 @@ python scripts/prepare_data.py
 python scripts/demo_pipeline.py
 ```
 
-Tras la ejecución, el pipeline genera parches de 256×256 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) a partir del split etiquetado de `training/` y deja `data/splits/test.txt` vacío porque DRIVE no incluye máscaras de vasos para el test oficial en este paquete.
+Tras la ejecución, el pipeline genera parches de 256×256 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) a partir del split etiquetado de `training/`. El test oficial de DRIVE mantiene sus dos máscaras expertas para evaluación, aunque no se usa como fuente de entrenamiento.
 
 El aumento de datos (flip horizontal, flip vertical, rotación 90°) se aplica solo sobre las imágenes de entrenamiento, evitando fuga de datos entre particiones.
 
