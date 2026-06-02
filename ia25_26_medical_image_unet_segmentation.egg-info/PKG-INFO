@@ -11,7 +11,7 @@ Repositorio base para el trabajo de segmentación de imágenes médicas con rede
 
 ## Alcance del proyecto
 
-La documentación del repositorio fija un objetivo claro: construir, entrenar y evaluar un modelo de segmentación médica capaz de generar máscaras con el mismo formato y tamaño que la imagen original, utilizando Keras 3 y TensorFlow.
+La documentación del repositorio y el enunciado de [docs/proyecto/segmentación_imágenes_médicas.pdf](docs/proyecto/segmentación_imágenes_médicas.pdf) fijan un objetivo claro: construir, entrenar y evaluar un modelo de segmentación médica capaz de generar máscaras con el mismo formato y tamaño que la imagen original, utilizando Keras 3 y TensorFlow.
 
 Los documentos revisados implican, como mínimo, estas piezas de trabajo:
 
@@ -21,6 +21,19 @@ Los documentos revisados implican, como mínimo, estas piezas de trabajo:
 - Entrenamiento reproducible, con validación y guardado del modelo en formato `.keras`.
 - Evaluación con métricas de segmentación, especialmente DICE score.
 - Generación de resultados visuales y un informe final con formato de artículo.
+- Trazabilidad del experimento: configuración reproducible, checkpoints y modelo final en `.keras`.
+
+### Alineación con el enunciado
+
+El enunciado del proyecto exige además varios puntos concretos que conviene tener presentes:
+
+- Usar la base de datos DRIVE 2004 en la convocatoria de junio/julio.
+- Trabajar con validación cruzada con al menos 5 pliegues.
+- Implementar DICE score como métrica principal y aspirar a una media mínima de 0.75.
+- Entregar segmentaciones generadas por el modelo en formato `.png`.
+- Devolver salidas con el mismo tamaño que la imagen original tras el postprocesado.
+- Aplicar padding o recorte cuando la forma de entrada no coincida con la que admite la U-Net.
+- Manejar el preprocesado de forma reproducible; el enunciado sugiere DataGenerator, aunque este repositorio actualmente usa un preprocesado previo a partir de `.npz`.
 
 ## Referencias analizadas
 
@@ -87,9 +100,10 @@ Los documentos revisados implican, como mínimo, estas piezas de trabajo:
 
 1. Colocar el dataset original en `data/raw/`.
 2. Ejecutar el preprocesado y generar particiones en `data/splits/`.
-3. Entrenar la U-Net desde `scripts/train.py` o desde un notebook.
+3. Entrenar la U-Net desde `scripts/train.py` o desde un notebook, usando 5 pliegues como mínimo.
 4. Guardar pesos, checkpoints y modelo final en `models/`.
-5. Evaluar el modelo y exportar figuras y predicciones en `artifacts/`.
+5. Evaluar el modelo con DICE como métrica principal y revisar si supera el objetivo medio de 0.75.
+6. Exportar las máscaras finales en `.png` y guardar figuras y predicciones en `artifacts/`.
 
 ## Trabajo en paralelo
 
@@ -140,11 +154,77 @@ python -m pip install -r requirements.txt
 python -m pip install -e .
 ```
 
+Si trabajas en PowerShell y `conda` no está inicializado en la sesión, arranca primero la shell de Conda y luego activa el entorno:
+
+```powershell
+& 'C:\ProgramData\anaconda3\shell\condabin\conda-hook.ps1'
+conda activate ia25-medseg
+```
+
+## Comandos principales
+
+Estos son los comandos que cubren el flujo completo del proyecto según el enunciado del PDF y la implementación actual.
+
+Importante: ejecútalos desde la raíz del repositorio y usa siempre la ruta `scripts/...`. Los ficheros `train.py`, `prepare_data.py`, `evaluate.py`, `predict.py`, `download_drive.py` y `demo_pipeline.py` no están en la raíz.
+
+```powershell
+# 1. Preparar el entorno
+& 'C:\ProgramData\anaconda3\shell\condabin\conda-hook.ps1'
+conda activate ia25-medseg
+python -m pip install -r requirements.txt
+python -m pip install -e .
+
+# 2. Descargar el dataset DRIVE 2004
+python scripts/download_drive.py
+
+# 3. Validar el dataset crudo
+python scripts/validate_data_raw.py
+
+# 4. Preprocesar, parchear y generar particiones
+python scripts/prepare_data.py
+
+# 5. Lanzar una demo visual del pipeline de datos
+python scripts/demo_pipeline.py
+
+# 6. Entrenar la U-Net con el NPZ preparado
+python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/default.yaml
+
+# 7. Evaluar el modelo final sobre un NPZ con imágenes y máscaras
+python scripts/evaluate.py --model models/final/unet_final.keras --data-npz artifacts/npz/val.npz
+
+# 8. Generar máscaras de inferencia sobre imágenes nuevas
+python scripts/predict.py --model models/final/unet_final.keras --images-npz artifacts/npz/val.npz
+```
+
+Para una comprobación rápida del entrenamiento, puedes acotar el número de épocas:
+
+```powershell
+python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/default.yaml --epochs 1 --batch-size 2
+```
+
 ## Preparación del dataset
 
 Este proyecto utiliza el **DRIVE 2004 (Digital Retinal Images for Vessel Extraction)**, un conjunto de 40 imágenes de fondo de ojo dividido oficialmente en 20 imágenes de entrenamiento y 20 de prueba. En este repositorio, solo las 20 imágenes de `training/` aportan ground truth supervisado de vasos; el conjunto `test/` se conserva para inferencia o inspección visual.
 
 La referencia clásica del dataset es: Staal J, Abramoff MD, Niemeijer M, Viergever MA, van Ginneken B. *Ridge-based vessel segmentation in color images of the retina.* IEEE Transactions on Medical Imaging. 2004;23(4):501-509.
+
+### Requisitos que marca el enunciado
+
+El PDF del proyecto pide una solución completa de segmentación con estos elementos mínimos:
+
+- Arquitectura U-Net con encoder/decoder y conexiones de salto.
+- Preprocesado con normalización, padding y, cuando haga falta, parcheado.
+- Aumento de datos para datasets pequeños.
+- Entrenamiento reproducible con validación y guardado del modelo.
+- Validación cruzada con al menos 5 pliegues.
+- Métricas de segmentación, con DICE como referencia mínima.
+- Objetivo de rendimiento: media de DICE de al menos 0.75 en DRIVE 2004.
+- Exportación del modelo en formato `.keras`.
+- Figuras, predicciones en `.png` y un informe final con formato académico.
+
+### Formato esperado de salida
+
+Para cumplir con el enunciado, la salida de inferencia debe conservar el tamaño original de la imagen tras el postprocesado y generar una máscara exportable en `.png` por cada muestra procesada.
 
 ### Pasos para descargar y preparar los datos
 
@@ -166,6 +246,24 @@ python scripts/demo_pipeline.py
 Tras la ejecución, el pipeline genera parches de 256×256 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) a partir del split etiquetado de `training/` y deja `data/splits/test.txt` vacío porque DRIVE no incluye máscaras de vasos para el test oficial en este paquete.
 
 El aumento de datos (flip horizontal, flip vertical, rotación 90°) se aplica solo sobre las imágenes de entrenamiento, evitando fuga de datos entre particiones.
+
+## Ejecución del modelo
+
+El entrenamiento que dejó Diego está en [scripts/train.py](scripts/train.py) y consume un `.npz` con las claves `images` y `masks`.
+
+```powershell
+& 'C:\ProgramData\anaconda3\shell\condabin\conda-hook.ps1'
+conda activate ia25-medseg
+python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/default.yaml
+```
+
+Si quieres comprobar rápidamente que todo arranca, usa una pasada corta:
+
+```powershell
+python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/default.yaml --epochs 1 --batch-size 2
+```
+
+El resultado del entrenamiento se guarda en `models/final/` y los logs/checkpoints en `models/checkpoints/` y `artifacts/logs/`.
 
 ## Estado actual
 

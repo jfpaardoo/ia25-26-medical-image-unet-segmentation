@@ -18,6 +18,8 @@ def _load_npz(path: Path) -> tuple[np.ndarray, np.ndarray]:
         raise ValueError("NPZ file must contain 'images' and 'masks' arrays.")
     images = data["images"]
     masks = data["masks"]
+    if images.ndim == 3:
+        images = images[..., None]
     if masks.ndim == 3:
         masks = masks[..., None]
     return images, masks

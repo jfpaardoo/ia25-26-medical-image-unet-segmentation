@@ -14,9 +14,10 @@ from src.training.callbacks import build_callbacks
 
 
 def _resolve_input_shape(config: dict[str, Any]) -> tuple[int, int, int]:
-    image_size = config.get("data", {}).get("image_size", (256, 256))
+    data_cfg = config.get("data", {})
+    input_dims = data_cfg.get("patch_size", data_cfg.get("image_size", (256, 256)))
     channels = config.get("model", {}).get("input_channels", 1)
-    return (int(image_size[0]), int(image_size[1]), int(channels))
+    return (int(input_dims[0]), int(input_dims[1]), int(channels))
 
 
 def _resolve_output_channels(config: dict[str, Any]) -> int:
