@@ -266,14 +266,35 @@ Pero la inteligencia artificial puede llegar a aprender de más y volverse contr
     \item \textbf{EarlyStopping}: El guardián final. Si la red se bloquea mentalmente y no mejora nada durante 15 vueltas seguidas, detiene y aborta completamente todo el programa. Después, rescata y devuelve el mejor archivo que guardó \textit{ModelCheckpoint}, ahorrando electricidad, tiempo y previniendo la memorización destructiva.
 \end{itemize}
 
-\section{Resultados Clínicos y Conclusiones}
-El desarrollo y la experimentación detallada de este trabajo demuestran a la perfección la enorme valía práctica de las redes neuronales especializadas en imagen (como U-Net) dentro del complicado entorno de la medicina, donde los datos abundantes brillan por su ausencia. Se ha comprobado a través del código que la escasez crítica de fotografías iniciales puede superarse casi sin problemas si se aplican métodos inteligentes de preprocesamiento, extracción de fragmentos y se altera ligeramente la información (\textit{Data Augmentation}) para engañar a la máquina.
+\section{Experimentación y Resultados Finales}
+Tras configurar un entorno de entrenamiento optimizado para un hardware local, se ejecutó el proceso de aprendizaje profundo a través de 5 pliegues de validación cruzada. El resultado final sobre el conjunto de validación que la máquina nunca había visto superó sustancialmente las expectativas mínimas marcadas por el proyecto. 
 
-Los pasos de limpieza y acondicionamiento de imagen que propusimos —muy especialmente el aislar el canal de luz verde y el filtro de sombras locales CLAHE— han demostrado no ser solo maquillaje estético para que el ojo humano lo vea más bonito. Al revés, han sido vitales computacionalmente: lograron iluminar capilares minúsculos y enfermos que estaban ocultos en la sombra, dándole a nuestra red neuronal un mapa del tesoro mucho más claro y fácil de aprender. Además, el truco de obligar a la máquina a usar una función de notas basada mayoritariamente en la métrica \textit{DICE} evitó el fallo típico de los novatos, donde la red simplemente se rinde y colorea todo de negro para aprobar fácilmente la asignatura.
+Concretamente, el mejor modelo del pliegue logró alcanzar un \textbf{Coeficiente DICE de 0.7875} y un Índice \textbf{IoU de 0.6495} en la evaluación de inferencia. Estas métricas certifican matemáticamente que el sistema es capaz de superar sobradamente el mínimo exigido del $75\%$ de rendimiento (DICE Score $> 0.75$).
 
-La combinación cuidadosa de parámetros (pocos filtros, apagar neuronas al azar, etc.) junto con los guardianes que apagan el entrenamiento antes de tiempo (\textit{Early Stopping}), logró estabilizar completamente el proceso de estudio del algoritmo. Toda esta ingeniería de software y decisiones clínicas han conseguido forjar una base tecnológica muy robusta, logrando unos números de competición que superan las barreras impuestas inicialmente (DICE Score $> 0.75$) y compitiendo de tú a tú con la opinión subjetiva del médico oftalmólogo.
+A nivel puramente visual y clínico, y gracias a la nueva herramienta desarrollada de predicción completa (\texttt{predict\_full.py}), se consiguió solventar el problema estético de las inferencias fragmentadas. Tal como demuestra el algoritmo de la Tabla \ref{tab:pseudocode2}, las máscaras predichas en forma de recortes de $128 \times 128$ son fundidas promediando el solapamiento entre ellas. El resultado final son reconstrucciones inmaculadas de la vasculatura retiniana completa en su resolución original ($584 \times 565$). Al prescindir de fronteras artificiales de corte, la red capilar presenta una continuidad perfecta, facilitando al especialista una revisión clínica completa del fondo de ojo de un solo vistazo.
 
-Echando la vista hacia un horizonte futuro o una tesis, el hecho de haber diseñado el código de forma modular nos deja la puerta abierta para añadir "juguetes" más modernos al sistema. Por ejemplo, sería increíblemente prometedor añadir compuertas de \textbf{Mecanismos de Atención} (\textit{Attention U-Net}). Estos módulos actúan como un foco de teatro: ayudarían a la red a centrar su visión de túnel única y exclusivamente en las zonas dudosas del ojo, apagando e ignorando matemáticamente el resto de zonas borrosas que solo sirven para despistar. Integrar algo así limpiaría aún más el resultado final de falsas alarmas, acercando este humilde proyecto al estatus de una herramienta real e infalible de segunda opinión automatizada que podría instalarse en cualquier consulta oftalmológica para asistir al especialista a combatir la ceguera y detectar a tiempo la retinopatía diabética de los pacientes.
+\begin{figure}[htbp]
+    \centering
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{demo_07_pred_patch.png}
+        \\ \vspace{0.2cm} \small (a) Parche Aislado ($128\times128$)
+    \end{minipage}\hfill
+    \begin{minipage}{0.64\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{demo_08_pred_full.png}
+        \\ \vspace{0.2cm} \small (b) Reconstrucción ($584\times565$)
+    \end{minipage}
+    \caption{Comparativa visual entre la inferencia matemática cruda y el ensamblado final continuo. (a) La red neuronal procesa y devuelve cientos de pequeños bloques cuadrados que, por sí solos, carecen de contexto anatómico. (b) Resultado de aplicar el script \texttt{predict\_full.py}: los parches se superponen y promedian para restaurar la topología vascular completa del ojo sin bordes ni ``costuras'' divisorias, ofreciendo un mapa final idóneo para la inspección oftalmológica.}
+    \label{fig:predictions_full}
+\end{figure}
+
+\section{Conclusiones y Trabajo Futuro}
+El desarrollo y la experimentación detallada de este trabajo demuestran a la perfección la enorme valía práctica de las redes neuronales convolucionales en imagen médica (como U-Net) dentro de un entorno clínico donde los datos masivos etiquetados brillan por su ausencia. Se ha comprobado a través de nuestra implementación algorítmica que la escasez crítica de fotografías iniciales (apenas 20 muestras) puede superarse de manera sobresaliente si se aplican métodos matemáticos de extracción de fragmentos superpuestos (\textit{Patching}) y aumento de datos (\textit{Data Augmentation}).
+
+Los pasos de limpieza y acondicionamiento de imagen que propusimos —muy especialmente aislar el canal de luz verde y el filtro de iluminación adaptativa local CLAHE— han demostrado no ser un mero maquillaje estético. Al revés, han sido vitales computacionalmente: lograron iluminar capilares minúsculos ocultos en la sombra, dándole a nuestra red neuronal un mapa estructural mucho más claro y fácil de aprender. Además, el emplear una función de coste combinada (\textit{BCE + Dice Loss}) forzó a las neuronas a no rendirse ante el abismal desbalance de clases del ojo.
+
+Echando la vista hacia un horizonte futuro o una posible Tesis Fin de Máster (TFM), el hecho de haber diseñado el código de forma limpia y modular nos deja la puerta abierta para escalar la arquitectura. Por ejemplo, sería prometedor incorporar \textbf{Mecanismos de Atención} (\textit{Attention U-Net}). Estos módulos ayudarían a la red a centrar su procesamiento de alto nivel única y exclusivamente en las bifurcaciones y capilares más difuminados, ignorando el resto del globo ocular. Integrar algo así, apoyado con un mayor volumen de datos internacionales de varios hospitales, acercaría este humilde proyecto universitario al estatus de una herramienta real de segunda opinión automatizada instalable en la consulta oftalmológica para detectar prematuramente la ceguera por retinopatía diabética.
 
 \begin{thebibliography}{99}
 
