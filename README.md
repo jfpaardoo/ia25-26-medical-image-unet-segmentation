@@ -57,21 +57,14 @@ El enunciado del proyecto exige además varios puntos concretos que conviene ten
 ├── docs/
 │   ├── README.md
 │   ├── proyecto/
+│   │   ├── memoria.tex
+│   │   ├── plantilla-trabajo.pdf
 │   │   └── segmentación_imágenes_médicas.pdf
 │   └── teoria/
-│       ├── Aprendizaje_automático_(Contenido_teórico).pdf
-│       ├── Aprendizaje_por_refuerzo_(Contenido_teórico).pdf
-│       ├── Planificación_automática_(Contenido_teórico).pdf
-│       ├── Procesamiento_del_lenguaje_natural_(Contenido_teórico).pdf
 │       └── Redes_neuronales_(Contenido_teórico).pdf
 ├── notebooks/
 │   ├── README.md
-│   ├── Gymnasium.ipynb
-│   ├── Keras.ipynb
-│   ├── NLTK.ipynb
-│   ├── Numpy_Pandas.ipynb
-│   ├── PDDL.ipynb
-│   └── scikit-learn.ipynb
+│   └── Keras.ipynb
 ├── scripts/
 ├── src/
 │   ├── config.py
@@ -86,7 +79,9 @@ El enunciado del proyecto exige además varios puntos concretos que conviene ten
 ├── artifacts/
 │   ├── figures/
 │   ├── logs/
-│   └── predictions/
+│   ├── npz/
+│   ├── predictions/
+│   └── predictions_full/
 └── tests/
 ```
 
@@ -171,23 +166,17 @@ python -m pip install -e .
 # 2. Descargar el dataset DRIVE 2004
 python scripts/download_drive.py
 
-# 3. Validar el dataset crudo
-python scripts/validate_data_raw.py
-
 # 4. Preprocesar, parchear y generar particiones
 python scripts/prepare_data.py
-
-# 5. Lanzar una demo visual del pipeline de datos
-python scripts/demo_pipeline.py
 
 # 6. Entrenar la U-Net con el NPZ preparado
 python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/default.yaml
 
 # 7. Evaluar el modelo final sobre un NPZ con imágenes y máscaras
-python scripts/evaluate.py --model models/final/unet_final.keras --data-npz artifacts/npz/val.npz
+python scripts/evaluate.py --model models/final/unet_fold_1.keras --data-npz artifacts/npz/val.npz
 
-# 8. Generar máscaras de inferencia sobre imágenes nuevas
-python scripts/predict.py --model models/final/unet_final.keras --images-npz artifacts/npz/val.npz
+# 8. Generar máscaras de inferencia reconstruidas al tamaño original
+python scripts/predict.py --model models/final/unet_fold_1.keras --images-dir data/raw/test/images --output artifacts/predictions
 ```
 
 Para una comprobación rápida del entrenamiento, puedes acotar el número de épocas:
@@ -232,9 +221,6 @@ python scripts/download_drive.py
 
 # 2. Preprocesar: normalización, parcheado 256×256 y particiones reproducibles
 python scripts/prepare_data.py
-
-# 3. (Opcional) Validar el pipeline con una demo visual
-python scripts/demo_pipeline.py
 ```
 
 Tras la ejecución, el pipeline genera parches de 256×256 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) a partir del split etiquetado de `training/`. El test oficial de DRIVE mantiene sus dos máscaras expertas para evaluación, aunque no se usa como fuente de entrenamiento.

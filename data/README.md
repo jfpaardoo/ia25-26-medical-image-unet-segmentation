@@ -29,7 +29,6 @@ data/raw/
 python -m pip install kagglehub
 python scripts/download_drive.py
 python scripts/prepare_data.py
-python scripts/validate_data_raw.py
 ```
 
 El preprocesado convierte las imágenes a escala de grises, normaliza, genera parches de 256×256 y escribe las particiones en `data/splits/`. La evaluación del split `test/` debe leer las dos máscaras expertas y calcular la media de sus métricas.

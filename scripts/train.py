@@ -56,7 +56,7 @@ def main() -> None:
         x_train, y_train = train_images[train_idx], train_masks[train_idx]
         x_val, y_val = train_images[val_idx], train_masks[val_idx]
 
-        model, history = train_model(train_data=(x_train, y_train), val_data=(x_val, y_val), config=config)
+        model, _ = train_model(train_data=(x_train, y_train), val_data=(x_val, y_val), config=config)
 
         model_path = final_models_dir / f"unet_fold_{fold}.keras"
         model.save(model_path)
