@@ -10,14 +10,14 @@ import matplotlib.pyplot as plt
 
 def _prepare_for_display(array: np.ndarray, is_label: bool) -> tuple[np.ndarray, Optional[str]]:
     array = np.asarray(array)
-    if array.ndim == 3 and array.shape[-1] == 1:
-        return array[..., 0], "gray"
-    if array.ndim == 3 and array.shape[-1] in (3, 4):
-        return array, None
-    if array.ndim == 3 and array.shape[-1] > 1 and is_label:
-        return np.argmax(array, axis=-1), "gray"
-    if array.ndim == 3 and array.shape[-1] > 1:
-        return array[..., 0], "gray"
+    if array.ndim == 3:
+        channels = array.shape[-1]
+        if channels == 1:
+            return array[..., 0], "gray"
+        if channels in (3, 4):
+            return array, None
+        if channels > 1:
+            return np.argmax(array, axis=-1) if is_label else array[..., 0], "gray"
     return array, "gray"
 
 
