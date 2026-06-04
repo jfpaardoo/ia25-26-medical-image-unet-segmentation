@@ -37,7 +37,7 @@ def _prepare_images(images: np.ndarray, model: keras.Model) -> np.ndarray:
         is_hwc = (
             expected_channels is not None and images.shape[-1] == expected_channels
         ) or (
-            expected_channels is None and images.shape[-1] in (1, 3)
+            expected_channels is None and images.shape[-1] in (1, 3, 4)
         )
         if is_hwc:
             images = images[np.newaxis, ...]  # (H, W, C) -> (1, H, W, C)

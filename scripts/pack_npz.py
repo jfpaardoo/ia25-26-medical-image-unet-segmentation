@@ -1,7 +1,5 @@
 import numpy as np
 from pathlib import Path
-import os
-import sys
 
 def main():
     project_root = Path(__file__).resolve().parents[1]

@@ -39,6 +39,10 @@ def main():
         print(f" -> Reconstruyendo {img_path.name}...")
         img_raw = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
         
+        if img_raw is None:
+            print(f"[WARN] No se pudo leer la imagen: {img_path}")
+            continue
+            
         # Necesitamos la imagen en formato 1 canal normalizada a [0, 1]
         dummy_mask = np.zeros(img_raw.shape[:2], dtype=np.uint8)
         
@@ -65,13 +69,14 @@ def main():
         )
         
         # Predecimos la máscara para todos los parches de esta imagen
-        masks = predict_mask(model, image_patches, threshold=args.threshold)
+        _, probabilities = predict_mask(model, image_patches, threshold=args.threshold, return_probabilities=True)
         
-        # Unimos el puzzle usando la función oficial de reconstrucción
-        rebuilt = reconstruct_from_patches(masks, positions, output_shape=img_raw.shape[:2])
+        # Unimos el puzzle usando probabilidades y luego aplicamos umbral
+        rebuilt_prob = reconstruct_from_patches(probabilities, positions, output_shape=img_raw.shape[:2])
+        rebuilt_mask = (rebuilt_prob >= args.threshold).astype(np.uint8)
         
         # Guardamos la imagen final completa
-        rebuilt_img = (rebuilt.squeeze() * 255).astype(np.uint8)
+        rebuilt_img = (rebuilt_mask.squeeze() * 255).astype(np.uint8)
         out_file = args.output / f"{img_path.stem}_pred.png"
         Image.fromarray(rebuilt_img).save(out_file)
         

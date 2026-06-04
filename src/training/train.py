@@ -43,6 +43,11 @@ def _build_model_if_needed(model: Optional[keras.Model], config: dict[str, Any])
     )
 
 
+def bce_dice_loss(y_true, y_pred):
+    bce = keras.losses.binary_crossentropy(y_true, y_pred)
+    return 0.5 * bce + 0.5 * dice_loss(y_true, y_pred)
+
+
 def _resolve_loss(loss: Optional[Any], config: dict[str, Any], training_cfg: dict[str, Any]) -> Any:
     if loss is not None:
         return loss
@@ -50,16 +55,13 @@ def _resolve_loss(loss: Optional[Any], config: dict[str, Any], training_cfg: dic
         return "categorical_crossentropy"
     
     loss_choice = str(training_cfg.get("loss", "bce_dice")).strip().lower()
-    bce = keras.losses.BinaryCrossentropy()
     
     if loss_choice == "dice":
         return dice_loss
     if loss_choice == "bce":
-        return bce
+        return keras.losses.BinaryCrossentropy()
         
-    def _combined_loss(y_true, y_pred):
-        return 0.5 * bce(y_true, y_pred) + 0.5 * dice_loss(y_true, y_pred)
-    return _combined_loss
+    return bce_dice_loss
 
 
 def _prepare_fit_kwargs(train_data, val_data, epochs: int, batch_size: Optional[int], val_split: float, callbacks: list) -> dict[str, Any]:

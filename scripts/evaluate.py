@@ -12,7 +12,13 @@ from src.evaluation.inference import evaluate_model
 
 
 def _ensure_mask_shape(mask: np.ndarray) -> np.ndarray:
+    mask = np.asarray(mask)
+    if mask.ndim == 2:
+        return mask[np.newaxis, ..., None]
     if mask.ndim == 3:
+        # Either (N, H, W) or a single (H, W, 1)
+        if mask.shape[-1] == 1:
+            return mask[np.newaxis, ...]
         return mask[..., None]
     return mask
 

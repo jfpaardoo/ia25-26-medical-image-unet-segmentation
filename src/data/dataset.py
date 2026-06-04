@@ -28,9 +28,19 @@ def _matching_files(directory: Path, stem: str) -> list[Path]:
 
 
 def _image_mask_pairs(root: Path) -> list[tuple[Path, Path]]:
-    pairs = {(root / "images", root / "masks")} if (root / "images").is_dir() and (root / "masks").is_dir() else set()
-    pairs.update((d, d.parent / "masks") for d in root.rglob("images") if d.is_dir() and (d.parent / "masks").is_dir())
-    return sorted(pairs, key=lambda p: p[0].as_posix())
+    mask_dirnames = ("masks", "masks_expert1", "masks_expert2")
+    pairs = set()
+    
+    for img_dir in [root / "images", *root.rglob("images")]:
+        if not img_dir.is_dir():
+            continue
+            
+        for mask_name in mask_dirnames:
+            mask_dir = img_dir.parent / mask_name
+            if mask_dir.is_dir():
+                pairs.add((img_dir, mask_dir))
+                
+    return sorted(pairs, key=lambda p: (p[0].as_posix(), p[1].as_posix()))
 
 
 def _resolve_mask_for_image(img: Path, root: Path) -> Path | None:
