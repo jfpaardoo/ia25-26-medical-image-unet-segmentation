@@ -14,107 +14,104 @@ class SegmentationSample:
     mask_path: Path
 
 
+def _is_image(p: Path) -> bool:
+    return p.suffix.lower() in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+
+
+def _matching_files(directory: Path, stem: str) -> list[Path]:
+    if not directory.exists():
+        return []
+    return sorted(
+        [p for p in directory.rglob("*") if p.is_file() and p.stem == stem],
+        key=lambda path: path.as_posix(),
+    )
+
+
+def _image_mask_pairs(root: Path) -> list[tuple[Path, Path]]:
+    mask_dirnames = ("masks", "masks_expert1", "masks_expert2")
+    pairs = set()
+    
+    for img_dir in [root / "images", *root.rglob("images")]:
+        if not img_dir.is_dir():
+            continue
+            
+        for mask_name in mask_dirnames:
+            mask_dir = img_dir.parent / mask_name
+            if mask_dir.is_dir():
+                pairs.add((img_dir, mask_dir))
+                
+    return sorted(pairs, key=lambda p: (p[0].as_posix(), p[1].as_posix()))
+
+
+def _resolve_mask_for_image(img: Path, root: Path) -> Path | None:
+    candidate = img.with_name(img.stem + "_mask" + img.suffix)
+    if candidate.exists():
+        return candidate
+
+    same_dir_matches = _matching_files(img.parent, img.stem)
+    for match in same_dir_matches:
+        if match != img:
+            return match
+
+    try:
+        rel = img.relative_to(root)
+    except ValueError:
+        return None
+
+    mirrored_candidate = root / "masks" / rel
+    if mirrored_candidate.exists():
+        return mirrored_candidate
+
+    mirrored_dir_matches = _matching_files(root / "masks" / rel.parent, img.stem)
+    for match in mirrored_dir_matches:
+        return match
+
+    return None
+
+
+def _find_explicit_mask(img: Path, images_dir: Path, masks_dir: Path, root: Path) -> Path | None:
+    candidate = masks_dir / img.relative_to(images_dir)
+    if candidate.exists():
+        return candidate
+
+    sibling_matches = sorted(
+        (p for p in masks_dir.rglob("*") if p.is_file() and p.stem == img.stem),
+        key=lambda path: path.as_posix()
+    )
+    if sibling_matches:
+        return sibling_matches[0]
+
+    return _resolve_mask_for_image(img, root)
+
+
+def _discover_explicit_layout(root: Path) -> list[SegmentationSample]:
+    samples = []
+    for images_dir, masks_dir in _image_mask_pairs(root):
+        for img in (p for p in images_dir.rglob("*") if p.is_file() and _is_image(p)):
+            mask_candidate = _find_explicit_mask(img, images_dir, masks_dir, root)
+            if mask_candidate is not None:
+                samples.append(SegmentationSample(image_path=img, mask_path=mask_candidate))
+    return samples
+
+
+def _discover_fallback_layout(root: Path) -> list[SegmentationSample]:
+    samples = []
+    for img in (p for p in root.rglob("*") if p.is_file() and _is_image(p)):
+        mask_candidate = _resolve_mask_for_image(img, root)
+        if mask_candidate is not None:
+            samples.append(SegmentationSample(image_path=img, mask_path=mask_candidate))
+    return samples
+
+
 def discover_samples(root_dir: Path) -> list[SegmentationSample]:
     """Return the dataset samples found under root_dir.
 
     The concrete discovery rules depend on the chosen dataset layout.
     """
-    from typing import List
-
     root = Path(root_dir)
-    image_exts = {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
-
-    def is_image(p: Path) -> bool:
-        return p.suffix.lower() in image_exts
-
-    def matching_files(directory: Path, stem: str) -> list[Path]:
-        if not directory.exists():
-            return []
-        return sorted(
-            [p for p in directory.rglob("*") if p.is_file() and p.stem == stem],
-            key=lambda path: path.as_posix(),
-        )
-
-    def image_mask_pairs() -> list[tuple[Path, Path]]:
-        pairs: list[tuple[Path, Path]] = []
-        seen: set[tuple[Path, Path]] = set()
-
-        explicit_images_dirs = [path for path in root.rglob("images") if path.is_dir()]
-        for images_dir in explicit_images_dirs:
-            masks_dir = images_dir.parent / "masks"
-            if masks_dir.is_dir():
-                pair = (images_dir, masks_dir)
-                if pair not in seen:
-                    seen.add(pair)
-                    pairs.append(pair)
-
-        if (root / "images").is_dir() and (root / "masks").is_dir():
-            pair = (root / "images", root / "masks")
-            if pair not in seen:
-                seen.add(pair)
-                pairs.append(pair)
-
-        return sorted(pairs, key=lambda pair: pair[0].as_posix())
-
-    def resolve_mask_for_image(img: Path) -> Path | None:
-        candidate = img.with_name(img.stem + "_mask" + img.suffix)
-        if candidate.exists():
-            return candidate
-
-        same_dir_matches = matching_files(img.parent, img.stem)
-        for match in same_dir_matches:
-            if match != img:
-                return match
-
-        try:
-            rel = img.relative_to(root)
-        except ValueError:
-            return None
-
-        mirrored_candidate = root / "masks" / rel
-        if mirrored_candidate.exists():
-            return mirrored_candidate
-
-        mirrored_dir_matches = matching_files(root / "masks" / rel.parent, img.stem)
-        for match in mirrored_dir_matches:
-            return match
-
-        return None
-
-    samples: List[SegmentationSample] = []
-
-    # Case A: explicit images/ and masks/ directories with mirrored structure,
-    # including nested layouts like training/images and test/images.
-    for images_dir, masks_dir in image_mask_pairs():
-        for img in images_dir.rglob("*"):
-            if not img.is_file() or not is_image(img):
-                continue
-            rel = img.relative_to(images_dir)
-            candidate = masks_dir / rel
-            if candidate.exists():
-                samples.append(SegmentationSample(image_path=img, mask_path=candidate))
-                continue
-
-            sibling_matches = sorted(
-                [p for p in masks_dir.rglob("*") if p.is_file() and p.stem == img.stem],
-                key=lambda path: path.as_posix(),
-            )
-            if sibling_matches:
-                samples.append(SegmentationSample(image_path=img, mask_path=sibling_matches[0]))
-                continue
-
-            mask_candidate = resolve_mask_for_image(img)
-            if mask_candidate is not None:
-                samples.append(SegmentationSample(image_path=img, mask_path=mask_candidate))
-
+    samples = _discover_explicit_layout(root)
     if samples:
         return sorted(samples, key=lambda s: s.image_path.as_posix())
-
-    # Case B: try to discover pairs in a single tree under root
-    images = [p for p in root.rglob("*") if p.is_file() and is_image(p)]
-    for img in images:
-        mask_candidate = resolve_mask_for_image(img)
-        if mask_candidate is not None:
-            samples.append(SegmentationSample(image_path=img, mask_path=mask_candidate))
-
+        
+    samples = _discover_fallback_layout(root)
     return sorted(samples, key=lambda s: s.image_path.as_posix())

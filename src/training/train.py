@@ -14,9 +14,10 @@ from src.training.callbacks import build_callbacks
 
 
 def _resolve_input_shape(config: dict[str, Any]) -> tuple[int, int, int]:
-    image_size = config.get("data", {}).get("image_size", (256, 256))
+    data_cfg = config.get("data", {})
+    input_dims = data_cfg.get("patch_size", data_cfg.get("image_size", (256, 256)))
     channels = config.get("model", {}).get("input_channels", 1)
-    return (int(image_size[0]), int(image_size[1]), int(channels))
+    return (int(input_dims[0]), int(input_dims[1]), int(channels))
 
 
 def _resolve_output_channels(config: dict[str, Any]) -> int:
@@ -24,14 +25,60 @@ def _resolve_output_channels(config: dict[str, Any]) -> int:
 
 
 def _resolve_output_dir(config: dict[str, Any], key: str, default: Path) -> Path:
-    outputs = config.get("outputs", {})
-    raw_path = outputs.get(key)
-    if not raw_path:
-        return default
-    path = Path(raw_path)
-    if not path.is_absolute():
-        path = PROJECT_ROOT / path
-    return path
+    raw_path = config.get("outputs", {}).get(key)
+    return (PROJECT_ROOT / raw_path).resolve() if raw_path else default
+
+
+def _build_model_if_needed(model: Optional[keras.Model], config: dict[str, Any]) -> keras.Model:
+    if model is not None:
+        return model
+    model_cfg = config.get("model", {})
+    return build_unet(
+        input_shape=_resolve_input_shape(config),
+        num_classes=_resolve_output_channels(config),
+        base_filters=int(model_cfg.get("base_filters", 32)),
+        depth=int(model_cfg.get("depth", 4)),
+        dropout_rate=float(model_cfg.get("dropout_rate", 0.0)),
+        use_batch_norm=bool(model_cfg.get("use_batch_norm", model_cfg.get("use_batchnorm", True))),
+    )
+
+
+def bce_dice_loss(y_true, y_pred):
+    bce = keras.losses.binary_crossentropy(y_true, y_pred)
+    return 0.5 * bce + 0.5 * dice_loss(y_true, y_pred)
+
+
+def _resolve_loss(loss: Optional[Any], config: dict[str, Any], training_cfg: dict[str, Any]) -> Any:
+    if loss is not None:
+        return loss
+    if _resolve_output_channels(config) != 1:
+        return "categorical_crossentropy"
+    
+    loss_choice = str(training_cfg.get("loss", "bce_dice")).strip().lower()
+    
+    if loss_choice == "dice":
+        return dice_loss
+    if loss_choice == "bce":
+        return keras.losses.BinaryCrossentropy()
+        
+    return bce_dice_loss
+
+
+def _prepare_fit_kwargs(train_data, val_data, epochs: int, batch_size: Optional[int], val_split: float, callbacks: list) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"epochs": epochs, "callbacks": callbacks}
+    if batch_size:
+        kwargs["batch_size"] = int(batch_size)
+    
+    if val_data is not None:
+        kwargs["validation_data"] = val_data
+    elif val_split > 0.0 and isinstance(train_data, (tuple, list)):
+        kwargs["validation_split"] = val_split
+
+    if isinstance(train_data, (tuple, list)) and len(train_data) == 2:
+        kwargs.update({"x": train_data[0], "y": train_data[1]})
+    else:
+        kwargs["x"] = train_data
+    return kwargs
 
 
 def train_model(
@@ -43,86 +90,42 @@ def train_model(
     monitor: Optional[str] = None,
 ):
     """Train the model using prepared datasets or arrays."""
-
     if train_data is None:
         raise ValueError("train_data must be provided. Pass a dataset or (x, y) tuple.")
 
     config = config or {}
     training_cfg = config.get("training", {})
-    model_cfg = config.get("model", {})
-    base_filters = int(model_cfg.get("base_filters", 32))
-    depth = int(model_cfg.get("depth", 4))
-    dropout_rate = float(model_cfg.get("dropout_rate", 0.0))
-    use_batch_norm = bool(model_cfg.get("use_batch_norm", model_cfg.get("use_batchnorm", True)))
-    learning_rate = float(training_cfg.get("learning_rate", 1e-4))
-    epochs = int(training_cfg.get("epochs", 100))
-    batch_size = training_cfg.get("batch_size")
-    validation_split = float(training_cfg.get("validation_split", 0.0))
+    
+    model = _build_model_if_needed(model, config)
+    loss_fn = _resolve_loss(loss, config, training_cfg)
 
-    if model is None:
-        input_shape = _resolve_input_shape(config)
-        output_channels = _resolve_output_channels(config)
-        model = build_unet(
-            input_shape=input_shape,
-            num_classes=output_channels,
-            base_filters=base_filters,
-            depth=depth,
-            dropout_rate=dropout_rate,
-            use_batch_norm=use_batch_norm,
-        )
-
-    if loss is None:
-        output_channels = _resolve_output_channels(config)
-        if output_channels == 1:
-            loss_choice = str(training_cfg.get("loss", "bce_dice")).strip().lower()
-            bce = keras.losses.BinaryCrossentropy()
-
-            if loss_choice == "dice":
-                loss = dice_loss
-            elif loss_choice == "bce":
-                loss = bce
-            else:
-                def _combined_loss(y_true, y_pred):
-                    return 0.5 * bce(y_true, y_pred) + 0.5 * dice_loss(y_true, y_pred)
-
-                loss = _combined_loss
-        else:
-            loss = "categorical_crossentropy"
-
-    has_validation = val_data is not None or validation_split > 0.0
-    if monitor is None:
-        monitor = "val_loss" if has_validation else "loss"
+    val_split = float(training_cfg.get("validation_split", 0.0))
+    has_validation = val_data is not None or val_split > 0.0
+    monitor = monitor or ("val_loss" if has_validation else "loss")
+    
     checkpoints_dir = _resolve_output_dir(config, "checkpoints_dir", CHECKPOINTS_DIR)
     logs_dir = _resolve_output_dir(config, "logs_dir", LOGS_DIR)
     final_models_dir = _resolve_output_dir(config, "final_model_dir", FINAL_MODELS_DIR)
+    
     callbacks = build_callbacks(checkpoints_dir=checkpoints_dir, logs_dir=logs_dir, monitor=monitor)
 
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
-        loss=loss,
+        optimizer=keras.optimizers.Adam(learning_rate=float(training_cfg.get("learning_rate", 1e-4))),
+        loss=loss_fn,
         metrics=[DiceCoefficient(name="dice"), iou_score],
     )
 
-    fit_kwargs: dict[str, Any] = {
-        "epochs": epochs,
-        "callbacks": callbacks,
-    }
-    if batch_size is not None:
-        fit_kwargs["batch_size"] = int(batch_size)
+    fit_kwargs = _prepare_fit_kwargs(
+        train_data, val_data,
+        epochs=int(training_cfg.get("epochs", 100)),
+        batch_size=training_cfg.get("batch_size"),
+        val_split=val_split,
+        callbacks=callbacks
+    )
 
-    if val_data is not None:
-        fit_kwargs["validation_data"] = val_data
-    elif validation_split > 0.0 and isinstance(train_data, (tuple, list)):
-        fit_kwargs["validation_split"] = validation_split
-
-    fit_args = [train_data]
-    if isinstance(train_data, (tuple, list)) and len(train_data) == 2:
-        fit_args = [train_data[0], train_data[1]]
-
-    history = model.fit(*fit_args, **fit_kwargs)
+    history = model.fit(**fit_kwargs)
 
     final_models_dir.mkdir(parents=True, exist_ok=True)
-    final_path = final_models_dir / "unet_final.keras"
-    model.save(final_path)
+    model.save(final_models_dir / "unet_final.keras")
 
     return model, history

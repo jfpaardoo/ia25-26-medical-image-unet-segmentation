@@ -1,72 +1,86 @@
-"""Generate predictions for new medical images."""
-
-from __future__ import annotations
+"""Generar predicciones para imágenes completas reconstruyendo los parches."""
 
 import argparse
 from pathlib import Path
-
+import cv2
 import numpy as np
 from PIL import Image
 
-from src.config import CONFIGS_DIR, PREDICTIONS_DIR, PROJECT_ROOT, load_yaml_config
-from src.evaluation.inference import predict_mask
+from src.config import CONFIGS_DIR, PROJECT_ROOT, load_yaml_config
+from src.evaluation.inference import load_model, predict_mask
+from src.data.preprocessing import normalize_image, resize_pair
+from src.data.patching import extract_patches, reconstruct_from_patches
 
-
-def _load_images(path: Path) -> np.ndarray:
-    data = np.load(path)
-    if "images" not in data:
-        raise ValueError("NPZ file must contain an 'images' array.")
-    return data["images"]
-
-
-def _resolve_output_dir(config: dict, key: str, default: Path) -> Path:
-    outputs = config.get("outputs", {})
-    raw_path = outputs.get(key)
-    if not raw_path:
-        return default
-    path = Path(raw_path)
-    if not path.is_absolute():
-        path = PROJECT_ROOT / path
-    return path
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate predictions for new medical images.")
+def main():
+    parser = argparse.ArgumentParser(description="Predecir máscaras para imágenes completas.")
     parser.add_argument("--config", type=Path, default=CONFIGS_DIR / "default.yaml")
     parser.add_argument("--model", type=Path, required=True)
-    parser.add_argument("--images-npz", type=Path, required=True)
-    parser.add_argument("--output", type=Path)
+    parser.add_argument("--images-dir", type=Path, default=PROJECT_ROOT / "data/raw/test/images")
+    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "artifacts/predictions_full")
     parser.add_argument("--threshold", type=float, default=0.5)
-    parser.add_argument("--save-probabilities", action="store_true")
     args = parser.parse_args()
 
     config = load_yaml_config(args.config)
-
-    images = _load_images(args.images_npz)
-    predictions_dir = _resolve_output_dir(config, "predictions_dir", PREDICTIONS_DIR)
-    output_dir = args.output or predictions_dir
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    result = predict_mask(
-        args.model,
-        images,
-        threshold=args.threshold,
-        return_probabilities=args.save_probabilities,
-    )
-
-    if args.save_probabilities:
-        masks, probabilities = result
-        np.savez_compressed(output_dir / "predictions.npz", masks=masks, probabilities=probabilities)
-    else:
-        masks = result
-
-    for idx, mask in enumerate(masks):
-        mask_img = (mask.squeeze() * 255).astype(np.uint8)
-        file_path = output_dir / f"pred_{idx + 1:03d}.png"
-        Image.fromarray(mask_img).save(file_path)
+    patch_size = config.get("data", {}).get("patch_size", [128, 128])
+    
+    args.output.mkdir(parents=True, exist_ok=True)
+    
+    print(f"Cargando modelo desde {args.model}...")
+    model = load_model(args.model)
+    
+    image_paths = list(args.images_dir.glob("*.tif")) + list(args.images_dir.glob("*.png"))
+    if not image_paths:
+        print(f"No se encontraron imágenes en {args.images_dir}")
+        return
         
-    print(f"Saved {len(masks)} prediction images to {output_dir}")
-
+    print(f"Se van a procesar {len(image_paths)} imágenes completas...")
+    
+    for img_path in image_paths:
+        print(f" -> Reconstruyendo {img_path.name}...")
+        img_raw = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
+        
+        if img_raw is None:
+            print(f"[WARN] No se pudo leer la imagen: {img_path}")
+            continue
+            
+        # Necesitamos la imagen en formato 1 canal normalizada a [0, 1]
+        dummy_mask = np.zeros(img_raw.shape[:2], dtype=np.uint8)
+        
+        # Aprovechamos resize_pair solo para pasar a escala de grises (1 canal) 
+        # usando target_size con el tamaño original de la imagen
+        img_gray, _ = resize_pair(
+            img_raw, 
+            dummy_mask, 
+            target_size=(img_raw.shape[0], img_raw.shape[1]), 
+            target_channels=1
+        )
+        
+        img_processed = normalize_image(img_gray)
+        img_processed = img_processed[..., None]
+        dummy_mask = dummy_mask[..., None]
+        
+        # Extraemos parches con solapamiento de la mitad para evitar bordes duros
+        stride = [max(1, patch_size[0] // 2), max(1, patch_size[1] // 2)]
+        image_patches, _, positions, _ = extract_patches(
+            img_processed, 
+            dummy_mask, 
+            patch_size=patch_size, 
+            stride=stride
+        )
+        
+        # Predecimos la máscara para todos los parches de esta imagen
+        _, probabilities = predict_mask(model, image_patches, threshold=args.threshold, return_probabilities=True)
+        
+        # Unimos el puzzle usando probabilidades y luego aplicamos umbral
+        rebuilt_prob = reconstruct_from_patches(probabilities, positions, output_shape=img_raw.shape[:2])
+        rebuilt_mask = (rebuilt_prob >= args.threshold).astype(np.uint8)
+        
+        # Guardamos la imagen final completa
+        rebuilt_img = (rebuilt_mask.squeeze() * 255).astype(np.uint8)
+        out_file = args.output / f"{img_path.stem}_pred.png"
+        Image.fromarray(rebuilt_img).save(out_file)
+        
+    print(f"¡Listo! Se guardaron {len(image_paths)} fotos reconstruidas enteras en {args.output}")
 
 if __name__ == "__main__":
     main()

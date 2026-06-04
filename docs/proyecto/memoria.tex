@@ -1,0 +1,355 @@
+\documentclass[conference]{IEEEtran}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{cite}
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{array}
+\usepackage{booktabs}
+
+\begin{document}
+
+\title{Segmentación de Imágenes Médicas con Arquitectura U-Net}
+
+\author{\IEEEauthorblockN{Juan Felipe Pardo Carrillo}
+\IEEEauthorblockA{\textit{Dpto. de Ciencias de la Computación e Inteligencia Artificial} \\
+\textit{Universidad de Sevilla}\\
+Sevilla, España \\
+juaparpar@alum.us.es (HHX3170)}
+\and
+\IEEEauthorblockN{Diego Vicente Cámara}
+\IEEEauthorblockA{\textit{Dpto. de Ciencias de la Computación e Inteligencia Artificial} \\
+\textit{Universidad de Sevilla}\\
+Sevilla, España \\
+dieviccam@alum.us.es (RXW1249)}
+}
+
+\maketitle
+
+\begin{abstract}
+El objetivo principal de este trabajo es construir, entrenar y evaluar una red neuronal convolucional basada en la arquitectura U-Net para segmentar automáticamente los vasos sanguíneos en imágenes del fondo de ojo pertenecientes al dataset público DRIVE 2004. Dada la complejidad típica de las imágenes oftalmológicas (ruido, iluminación irregular y bajo contraste) y la escasez de muestras etiquetadas, se ha diseñado un pipeline de preprocesamiento, aumento de datos y extracción de parches (patching). El preprocesamiento mejora el contraste de los capilares a través de técnicas como la extracción del canal verde, la Ecualización Adaptativa del Histograma (CLAHE) y la corrección Gamma. A nivel arquitectónico, la red U-Net se ha adaptado mediante el uso de Dropout y Batch Normalization para prevenir el sobreajuste. Empleando una función de coste combinada equilibrada (0.5 * BCE + 0.5 * Dice Loss), el modelo es capaz de ofrecer una segmentación precisa de las estructuras capilares. Este sistema sienta las bases para superar los umbrales mínimos de rendimiento estipulados (DICE score $> 0.75$) frente a validaciones manuales de expertos clínicos, contribuyendo a la automatización del diagnóstico en patologías como la retinopatía diabética.
+\end{abstract}
+
+\begin{IEEEkeywords}
+Segmentación de Imágenes Médicas, Aprendizaje Profundo, Redes Neuronales Convolucionales, U-Net, DRIVE 2004, Preprocesamiento, CLAHE, Retinopatía Diabética, Patching, Inferencia, Skip Connections.
+\end{IEEEkeywords}
+
+\section{Introducción}
+La visión artificial y el análisis automatizado de imágenes médicas han avanzado significativamente durante la última década gracias al Aprendizaje Profundo (Deep Learning). La segmentación de imágenes biomédicas, entendida como el proceso de partición digital de una imagen en segmentos significativos a nivel de píxel, representa uno de los desafíos más críticos en la intersección de la informática y la medicina moderna \cite{ref1, ref3}.
+
+\subsection{La Relevancia Clínica de la Segmentación}
+El análisis de la vasculatura retiniana a través de imágenes del fondo de ojo es un procedimiento fundamental para el diagnóstico y seguimiento de patologías cardiovasculares y oftalmológicas. Enfermedades silenciosas pero devastadoras, como la retinopatía diabética, la hipertensión arterial crónica o el glaucoma, dejan su primera huella clínica en los diminutos capilares de la retina. Tradicionalmente, la delimitación de esta red capilar ha sido realizada de manera puramente manual por oftalmólogos. 
+
+Sin embargo, este enfoque manual requiere mucho tiempo por paciente, está fuertemente sujeto a la subjetividad del observador (lo que un médico considera un vaso, otro podría considerarlo ruido visual) y es muy difícil de escalar ante el inmenso volumen de datos que se genera diariamente en los hospitales y centros de salud modernos. La automatización mediante Inteligencia Artificial promete ofrecer una segunda opinión instantánea, constante y libre de fatiga.
+
+\subsection{Desafíos Computacionales}
+La automatización de este proceso clínico enfrenta varios obstáculos técnicos inherentes a la fotografía médica. Las imágenes del fondo de ojo se toman dilatando la pupila del paciente y proyectando un destello de luz hacia el interior del globo ocular. Esto provoca deslumbramientos inevitables. Entre los retos más notables se encuentran la variabilidad en la iluminación entre distintas tomas, el ruido de los sensores fotográficos, el bajísimo contraste entre los vasos sanguíneos más finos y el fondo de la retina, y la posible presencia de patologías como hemorragias o exudados que el ordenador puede confundir con venas \cite{ref4}.
+
+\subsection{Solución Propuesta}
+En respuesta a estas limitaciones, las arquitecturas de Redes Neuronales Completamente Convolucionales (Fully Convolutional Networks, FCN) se han consolidado como un estándar en el sector médico. En particular, la arquitectura U-Net, propuesta por Ronneberger et al. \cite{ref3}, ha destacado notablemente en la literatura científica. Su diseño inteligente combina un flujo de contracción para capturar «qué» hay en la imagen (el contexto global) y un flujo de expansión para saber «dónde» está exactamente (recuperando detalles espaciales mediante conexiones de salto). Esto permite entrenar modelos extremadamente robustos incluso cuando solo se dispone de un puñado de imágenes anotadas, algo vital en medicina donde conseguir etiquetado experto es sumamente caro. En el presente trabajo se aborda este problema detallando el diseño algorítmico, las decisiones de arquitectura y la justificación de las métricas empleadas de manera clara y profesional.
+
+\section{Dataset y Objetivo}
+El conjunto de datos utilizado para el entrenamiento y la validación del modelo es el reconocido DRIVE (Digital Retinal Images for Vessel Extraction) \cite{ref7}. Publicado originariamente en el año 2004, sigue siendo hoy en día un conjunto de referencia global para evaluar algoritmos de extracción vascular.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{demo_01_raw_samples.png}
+    \caption{Muestras representativas del conjunto de datos DRIVE 2004. Se ilustra una imagen original RGB del fondo de ojo capturada mediante retinografía junto a su máscara de segmentación experta (Ground Truth), donde los píxeles blancos indican la red vascular. Es evidente la complejidad topológica y el bajísimo contraste en las ramificaciones más finas.}
+    \label{fig:raw_samples}
+\end{figure}
+
+Como se detalla en la Fig. \ref{fig:raw_samples}, las imágenes base son fotografías a color RGB del fondo ocular. El dataset consta de únicamente 40 imágenes originales, cada una con una resolución de 565 $\times$ 584 píxeles. Estas fotografías fueron obtenidas durante un programa real de detección temprana masiva de retinopatía diabética llevado a cabo en los Países Bajos. Del total de las 40 capturas, 7 imágenes presentan signos tempranos de la enfermedad, mientras que las 33 restantes corresponden a pacientes completamente sanos.
+
+\subsection{División de los Datos Clínicos}
+La distribución de los datos se estructura en dos conjuntos estrictamente separados para asegurar una evaluación justa, evitando que el modelo memorice las respuestas:
+\begin{itemize}
+    \item \textbf{Conjunto de Entrenamiento (Training Set):} Contiene 20 imágenes con sus máscaras del campo de visión (FOV) y una máscara de segmentación perfecta (Ground Truth) etiquetada laboriosamente a mano por un oftalmólogo experto. En nuestra implementación informática, este conjunto se subdivide dinámicamente usando una proporción 80/20 para el entrenamiento y la validación interna del algoritmo.
+    \item \textbf{Conjunto de Prueba (Test Set):} Incluye las 20 imágenes restantes. A diferencia del entrenamiento, este conjunto dispone de segmentaciones realizadas por dos expertos clínicos independientes. Esto es crucial, ya que permite evaluar el rendimiento del algoritmo comparándolo directamente contra la discrepancia natural que existe entre dos profesionales humanos.
+\end{itemize}
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{demo_05_split_stats.png}
+    \caption{Distribución de clases en el dataset. El gráfico ilustra el fuerte desbalance del problema, donde la clase que queremos detectar (los vasos sanguíneos) ocupa un porcentaje muy reducido del área total frente al gran tamaño del fondo retiniano y el espacio vacío exterior.}
+    \label{fig:split_stats}
+\end{figure}
+
+\textbf{Objetivo Principal del Trabajo:} El propósito central de este trabajo es implementar mediante código desde cero, entrenar en hardware acelerado y evaluar una red basada en la arquitectura U-Net capaz de segmentar automáticamente los capilares sanguíneos. Como muestra la Fig. \ref{fig:split_stats}, existe un fuerte desbalance de clases, ya que los vasos ocupan aproximadamente entre un 10\% y un 15\% del campo visual útil. El modelo debe sobreponerse a este desequilibrio natural y lograr un rendimiento competitivo en entornos reales. 
+
+Específicamente, de acuerdo con los requisitos formales del proyecto, se espera que el modelo entrenado supere como mínimo un DICE score de \textbf{0.75 de media} sobre el conjunto de test. Esta evaluación debe contemplar las segmentaciones manuales de los \textbf{dos expertos clínicos distintos} disponibles en dicho conjunto. Es decir, el rendimiento real del modelo se evalúa por duplicado: si se obtiene, por ejemplo, un \textit{score} de 0.78 respecto a la segmentación del primer experto, y un 0.74 respecto a la del segundo, el rendimiento medio final del modelo sería de 0.76, cumpliendo así con los criterios de éxito estipulados para la validación clínica automatizada.
+\section{Métricas de Evaluación}
+La evaluación del rendimiento en segmentación médica es muy distinta a la de una tarea de clasificación convencional (como distinguir un perro de un gato). Debido al gran desequilibrio de clases mencionado anteriormente, utilizar únicamente la métrica de Precisión Global (\textit{Accuracy}) resultaría inútil y engañoso; un modelo «perezoso» que siempre predijera «esto es fondo ocular» para todos los píxeles alcanzaría de media más del 85\% de acierto sin haber detectado absolutamente ni un solo vaso sanguíneo. Por lo tanto, la evaluación debe apoyarse obligatoriamente en medidas que comparen el solapamiento de las formas geométricas predichas contra la realidad.
+
+En la implementación en código (\texttt{metrics.py}), se ha programado un valor de suavizado muy pequeño (conocido como $\epsilon = 10^{-7}$) que se añade siempre a las divisiones matemáticas. Esto garantiza la estabilidad del sistema impidiendo que el ordenador intente dividir por cero cuando una imagen no contiene ningún vaso (por ejemplo, si se extrae un parche completamente negro).
+
+\textbf{1) Coeficiente de Sørensen-Dice (DICE Score):} Es la métrica de rendimiento indiscutible en segmentación. Penaliza fuertemente los errores donde la predicción y el experto no coinciden, ignorando por completo los Verdaderos Negativos (el amplio y aburrido fondo retiniano sano). Su valor va de 0 (fracaso absoluto) a 1 (coincidencia perfecta):
+\begin{equation}
+DICE = \frac{2 |X \cap Y| + \epsilon}{|X| + |Y| + \epsilon} = \frac{2 \cdot TP}{2 \cdot TP + FP + FN}
+\end{equation}
+Donde $TP$ son los Verdaderos Positivos, $FP$ los Falsos Positivos y $FN$ los Falsos Negativos. En el código, esta métrica se implementó creando una clase personalizada \texttt{DiceCoefficient} (heredando de \texttt{keras.metrics.Metric}) que acumula los resultados a lo largo de todo el entrenamiento por lotes (\textit{streaming metric}) para ofrecer un promedio real y estable al final de cada ciclo.
+
+\textbf{2) Intersección sobre la Unión (IoU o Índice de Jaccard):} Relacionada estrechamente con el coeficiente Dice, esta fórmula calcula de forma más estricta el área de intersección exacta sobre el área total que ocupan ambas formas combinadas:
+\begin{equation}
+IoU = \frac{|X \cap Y| + \epsilon}{|X \cup Y| + \epsilon} = \frac{TP}{TP + FP + FN}
+\end{equation}
+
+\textbf{3) Sensibilidad (Recall):} Mide la proporción de vasos sanguíneos reales que el modelo logró detectar correctamente frente al total que existía. Es una métrica vital en contextos médicos porque prioriza no omitir zonas enfermas (reducir los falsos negativos al máximo):
+\begin{equation}
+Sensibilidad = \frac{TP}{TP + FN}
+\end{equation}
+
+\textbf{4) Especificidad (Specificity):} Mide la capacidad contraria: lo bien que el modelo clasifica correctamente el tejido sano de fondo. Una alta especificidad evita que el sistema genere ramificaciones falsas o identifique ruido óptico como si fuesen venas:
+\begin{equation}
+Especificidad = \frac{TN}{TN + FP}
+\end{equation}
+
+\section{Metodología e Implementación}
+El desarrollo del proyecto cubre el ciclo completo de vida de un sistema de Inteligencia Artificial: incluye rutinas automáticas de carga inteligente de datos, un robusto bloque de preprocesamiento de imágenes, un proceso de parcheado (\textit{patching}) para solventar la falta de imágenes y el diseño final de la red neuronal propiamente dicha.
+
+\subsection{Obtención Automatizada y Búsqueda Dinámica de Datos}
+Para asegurar la total reproducibilidad del experimento sin intervención manual, se diseñó una rutina de descarga automatizada empleando llamadas a la API oficial de repositorios de datos. Este proceso descarga de manera programática el conjunto DRIVE 2004, organiza los directorios y valida mediante comprobaciones de integridad que se disponga exactamente de las 40 imágenes originales y sus respectivas máscaras de campo de visión y anotaciones expertas (incluyendo la bifurcación de expertos en el conjunto de prueba). Una vez en el sistema, un módulo de descubrimiento escanea recursivamente la estructura de carpetas y empareja cada fotografía con su máscara correspondiente basándose en identificadores únicos, lo que aporta enorme robustez frente a cambios en el sistema de archivos.
+
+\subsection{Sistema de Configuración Centralizada}
+Siguiendo las mejores prácticas de ingeniería de software, toda la parametrización del proyecto se ha extraído hacia un sistema de configuración centralizado basado en archivos de marcado declarativo. Esta decisión de diseño permite separar de manera limpia la lógica algorítmica de los hiperparámetros. En consecuencia, aspectos vitales como el tamaño de los recortes espaciales, la probabilidad de las funciones de aumento de datos, o la tasa de aprendizaje del optimizador pueden modificarse instantáneamente para lanzar distintos experimentos sin riesgo de alterar la integridad de la implementación subyacente.
+
+\subsection{Preprocesamiento Avanzado de la Señal}
+Debido a las grandes irregularidades en la adquisición fotográfica (reflejos de la lente, cambios severos de iluminación y cataratas en los pacientes), se aplicó un flujo de procesamiento (\texttt{preprocessing.py}) diseñado en exclusiva para destacar al máximo los capilares antes de que la red neuronal intente interpretarlos (Fig. \ref{fig:preprocessing}).
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{demo_02_preprocessing.png}
+    \caption{Esquema del flujo de preprocesamiento de imágenes. Muestra los pasos progresivos: extracción matemática del canal verde, seguido de la aplicación local del algoritmo CLAHE para mejorar el contraste oscuro sin alterar el resto, finalizando con la normalización de la imagen.}
+    \label{fig:preprocessing}
+\end{figure}
+
+El proceso arranca con la \textbf{Extracción del Canal Verde (Green Channel)}. Dado que la hemoglobina de nuestra sangre absorbe especialmente la luz que se emite en la franja del rango verde del espectro, este canal por sí solo es el que ofrece un contraste muchísimo mayor entre los vasos oscuros y el resto del globo ocular iluminado. Utilizando funciones de OpenCV (\texttt{cv2.cvtColor}), la imagen a color se transforma a una escala de grises conservando únicamente esta valiosa información óptica.
+
+A continuación, entra en juego la \textbf{Ecualización Adaptativa del Histograma Limitada por Contraste (CLAHE)}. A diferencia de una ecualización de luz estándar (que lavaría toda la imagen dejándola plana), CLAHE divide la imagen en pequeñas cuadrículas y ecualiza la iluminación de cada región de manera independiente. Si detecta un exceso de ruido en alguna zona plana de la retina, el algoritmo corta el contraste de raíz para no generar artefactos visuales artificiales en el fondo sano.
+
+Finalmente, para que la red neuronal pueda «digerir» mejor los números, las intensidades de los píxeles (originalmente en el rango clásico informático de 0 a 255) se dividen entre 255.0. Esto las convierte en valores decimales \texttt{float32} en el rango continuo de 0 a 1, un paso obligatorio para que las matemáticas del descenso del gradiente funcionen correctamente. Los resultados espectaculares de estos filtros se pueden observar en la Fig. \ref{fig:processed_samples}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{demo_06_processed_samples.png}
+    \caption{Comparativa visual tras el preprocesamiento. A la izquierda se observa la imagen que recibe la red (tras extraer el canal verde y aplicar CLAHE) y a la derecha lo que debe aprender a predecir. La visibilidad de los vasos ha mejorado sustancialmente, incluso en las zonas más oscuras del ojo.}
+    \label{fig:processed_samples}
+\end{figure}
+
+\subsection{Estrategia de Parches (\textit{Patching}) y Aumento de Datos}
+El mayor riesgo y enemigo al entrenar redes neuronales profundas con bases de datos médicas pequeñas es la memorización o sobreajuste (\textit{overfitting}). Como nuestro dataset solo cuenta con 20 imágenes para aprender, el sistema podría simplemente memorizarlas. Para evitarlo por completo, se implementó una estrategia matemática de fragmentación cruzada conocida como \textbf{\textit{Patching}} (\texttt{patching.py}).
+
+En lugar de achicar toda la imagen para que encaje en la red (lo que destruiría los píxeles de los vasos más delgados), la imagen completa se corta como un mosaico en sub-regiones pequeñas. La configuración elegida recorta cuadros perfectos de $128 \times 128$ píxeles, empleando un salto (\textit{stride}) de 128 píxeles tanto horizontal como verticalmente, es decir, procesando la imagen sin solapamiento. Esto obliga a la red a ver el mismo capilar desde distintas perspectivas cortadas.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{demo_04_patching.png}
+    \caption{Proceso de fragmentación en parches o mosaicos (\textit{Patching}). La imagen principal se divide en cientos de pequeños bloques de $128 \times 128$ píxeles superpuestos entre sí. Cada pequeño cuadrado servirá como una imagen independiente para engañar a la red y hacerle creer que tiene un dataset inmenso.}
+    \label{fig:patching}
+\end{figure}
+
+Para gestionar qué ocurre en los márgenes de la fotografía cuando el tamaño del parche se sale fuera del marco de la imagen, se programó una función inteligente de relleno adaptativo. Esta función «espejea» o refleja el contenido de los bordes (\texttt{mode='reflect'}) en lugar de añadir parches negros vacíos que confundirían al algoritmo. Esta lógica algorítmica se resume claramente en la Tabla \ref{tab:pseudocode1}.
+
+\begin{table}[htbp]
+\centering
+\caption{Algoritmo 1: Extracción Inteligente de Parches}
+\label{tab:pseudocode1}
+\begin{tabular}{|p{8cm}|}
+\hline
+\textbf{Procedimiento} \texttt{ExtractPatches} \\
+\textbf{Entrada:} \\
+\quad $\bullet$ Imagen procesada $I$ y su Máscara de Experto $M$ \\
+\quad $\bullet$ Tamaño del parche que queremos $P$ ($128 \times 128$) \\
+\quad $\bullet$ Nivel de solapamiento $S$ ($128 \times 128$) \\
+\textbf{Salidas:} \\
+\quad $\bullet$ Cientos de parches resultantes listos para usar \\
+\textbf{Algoritmo Paso a Paso:} \\
+1. \textbf{Ajuste del borde exterior (Padding reflectivo):} \\
+\quad a. Calcular las dimensiones finales necesarias para que nada quede fuera. \\
+\quad b. Aplicar el efecto espejo en los bordes de la imagen y de la máscara. \\
+2. \textbf{Inicialización:} Crear listas vacías para guardar los recortes. \\
+3. \textbf{Bucle de Recorte en Cuadrícula:} \\
+\quad \textbf{Para} cada fila de arriba hacia abajo saltando $128$ píxeles: \\
+\quad\quad \textbf{Para} cada columna de izquierda a derecha saltando $128$ píxeles: \\
+\quad\quad\quad i. Recortar un cuadro de $128\times128$ en esa posición. \\
+\quad\quad\quad ii. Guardar los cuadros recortados en nuestras listas. \\
+4. \textbf{Devolver} los conjuntos inmensos de parches listos para entrenar. \\
+\hline
+\end{tabular}
+\end{table}
+
+Gracias a este sencillo pero ingenioso método, de 20 simples fotografías se logran extraer decenas de miles de pequeños bloques de datos listos para alimentar a la Inteligencia Artificial. 
+
+\subsection{Superación del Cuello de Botella de E/S: Empaquetado de Datos}
+Un obstáculo técnico significativo afrontado durante esta fase fue el cuello de botella generado por las operaciones de Entrada/Salida (E/S) del almacenamiento físico. El proceso de fragmentación detallado anteriormente produce miles de pequeños recortes. Si el hardware tuviera que abrir y leer cada archivo uno por uno iterativamente, la latencia del disco limitaría drásticamente la velocidad de cómputo de la tarjeta gráfica (GPU). Para solucionar este impedimento, se implementó una rutina de empaquetado que consolida todos los parches procesados en grandes bloques contiguos de memoria comprimida. Esto multiplicó radicalmente la eficiencia de la ingesta de datos, permitiendo explotar al máximo la aceleración por hardware.
+
+Adicionalmente, durante el proceso de preparación se emplea la técnica de \textbf{Aumento de Datos Estocástico (\textit{Data Augmentation})}. Esto significa alterar las imágenes artificialmente multiplicando la variabilidad de las muestras.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{demo_03_augmentations.png}
+    \caption{Demostración visual del aumento de datos en memoria. Al vuelo, se aplican rotaciones de 90$^\circ$, 180$^\circ$ y 270$^\circ$, junto con volteos horizontales y verticales tipo espejo. También se incluye a veces algo de ruido aleatorio para acostumbrar a la red a no fiarse de imágenes perfectas.}
+    \label{fig:augmentations}
+\end{figure}
+
+Se optó de forma muy estricta por aplicar exclusivamente rotaciones en ángulos rectos y volteos simples. El motivo clínico y técnico para esta decisión es fundamental: si aplicamos ángulos libres (por ejemplo, girar la foto 33 grados), el ordenador se ve obligado a inventarse píxeles intermedios (interpolación). Esta invención difumina y borra por completo los contornos más finos de los capilares de 1 píxel de grosor, arruinando la precisión médica.
+
+\subsection{Diseño de la Arquitectura Central: U-Net}
+El núcleo pensante de nuestro sistema predictivo es la implementación desde cero de la famosa red U-Net (\texttt{unet.py}), estructurada en nuestro código a través de bloques modulares y reutilizables (\texttt{blocks.py}). 
+
+La red tiene, literalmente, forma de letra «U», dividida en dos caminos principales. En el \textbf{Encoder} (o ruta de bajada/contracción), se aplican filtros que actúan como «lupas» para identificar patrones generales, y se va reduciendo el tamaño de la imagen a la mitad sucesivamente mediante la técnica \textit{Max Pooling}. Esto extrae la «esencia» de la imagen pero pierde la precisión de dónde está ubicada cada cosa.
+
+Luego, en el \textbf{Decoder} (o ruta de subida/expansión), el proceso intenta hacer el camino inverso. Utiliza capas especiales (\textit{Conv2DTranspose}) para volver a ampliar la imagen pasito a pasito hasta recuperar su tamaño original. 
+
+El verdadero secreto mágico de U-Net son las \textbf{Skip Connections} (conexiones de salto). Dado que en la «bajada» habíamos perdido los detalles de alta resolución, estas conexiones funcionan como puentes directos que enlazan la información de la bajada directamente con la subida. Gracias a estos «chivatazos» de resolución, la red consigue reconstruir los bordes milimétricos de las venas basándose en lo que vio al principio.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\linewidth]{u-net.png}
+    \caption{Esquema conceptual de la arquitectura U-Net empleada. Se aprecia claramente la ruta de contracción (izquierda) que extrae características globales y la ruta de expansión (derecha) que recupera la resolución espacial, unidas mediante las \textit{Skip Connections} transversales.}
+    \label{fig:unet}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\caption{Parámetros Principales de la U-Net}
+\label{tab:hyperparams}
+\begin{tabular}{@{}lp{1.8cm}p{3cm}@{}}
+\toprule
+\textbf{Componente} & \textbf{Valor Empleado} & \textbf{Justificación} \\
+\midrule
+Canales de Entrada & 1 (Escala Grises) & Únicamente pasamos el canal verde optimizado \\
+Canales de Salida & 1 (Blanco/Negro) & Tarea de segmentación Binaria \\
+Niveles Profundos & 4 bloques & Ampliar el campo receptivo global \\
+Filtros Iniciales & Solo 16 filtros & Limitar la capacidad para evitar memorización rápida \\
+Normalización & \textit{Batch Norm.} & Mantiene el entrenamiento matemáticamente estable \\
+Regularización & \textit{Dropout} (25\%) & Apaga el 25\% del cerebro al azar para forzar la robustez \\
+Activación Final & Función Sigmoide & Obliga a responder con un $\%$ de probabilidad (0 a 1) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Como muestra claramente la Tabla \ref{tab:hyperparams}, para limitar la capacidad de la red de memorizar las imágenes se estableció un límite inicial muy austero de solo 16 filtros. Todas las neuronas están protegidas con \textit{Batch Normalization} para facilitar que aprendan al mismo ritmo, y se aplica \textit{Dropout} (un 25\%) para desactivar sectores de la red al azar y fortalecer su aprendizaje obligando a las neuronas restantes a trabajar más.
+
+La forma de «castigar» a la red cuando se equivoca durante el entrenamiento (descenso por el gradiente y retropropagación \cite{ref_teoria}) se rige por una función de coste o \textit{Loss} combinada de creación propia:
+\begin{equation}
+Loss = 0.5 \cdot BCE_{loss} + 0.5 \cdot Dice_{loss}
+\end{equation}
+La entropía cruzada binaria (\textit{BCE}) aporta mucha estabilidad a nivel de píxel en las primeras épocas de entrenamiento, y su equilibrio al 50\% con la \textit{Dice Loss} es lo que realmente obliga y empuja a la red a enfocarse de manera casi obsesiva en encontrar los poquísimos píxeles que conforman las venas, ignorando todo el negro de alrededor.
+
+\subsection{Proceso de Predicción e Inferencia Real}
+Cuando por fin terminamos de entrenar y el modelo se enfrenta a la vida real, debe procesar imágenes completas y gigantes que nunca ha visto. Como la red solo entiende de parches de $128 \times 128$, tenemos que dividir la imagen grande, pasar todos los pedacitos por la red y luego volver a pegarlos como un puzzle. El problema de este puzzle es que unir los bloques separados suele causar cortes muy feos y visibles en las zonas donde dos parches se tocan (como una cuadrícula mal pegada). 
+
+Para resolver este fallo estético y funcional, en la fase final (\texttt{inference.py}) decidimos que los parches se solapen mucho, y donde haya solape, el algoritmo simplemente promedia las opiniones de la red, tal y como se detalla paso a paso en la Tabla \ref{tab:pseudocode2}.
+
+\begin{table}[htbp]
+\centering
+\caption{Algoritmo 2: Reconstrucción Suave del Puzzle}
+\label{tab:pseudocode2}
+\begin{tabular}{|p{8cm}|}
+\hline
+\textbf{Procedimiento} \texttt{ReconstructFromPatches} \\
+\textbf{Entrada:} \\
+\quad $\bullet$ Cientos de parches pequeños ya predichos por la red \\
+\quad $\bullet$ Tamaño del lienzo final original \\
+\textbf{Salidas:} \\
+\quad $\bullet$ Imagen médica de salida completa, limpia y sin costuras \\
+\textbf{Algoritmo Paso a Paso:} \\
+1. Crear un lienzo en negro inmenso para acumular los colores. \\
+2. Crear un segundo lienzo contable para llevar la cuenta de cuántas veces hemos pintado sobre cada píxel. \\
+3. \textbf{Por cada} pequeño parche que nos devuelva la red: \\
+\quad a. Sumar los píxeles blancos en su lugar correspondiente del lienzo. \\
+\quad b. Sumar un $+1$ en esa misma zona del segundo lienzo contador. \\
+4. \textbf{Difuminado y Promedio final:} \\
+\quad a. Dividir el lienzo de pintura entre el lienzo contador (calcular la media matemática de opiniones por zona). \\
+5. \textbf{Devolver} la imagen limpia sin ninguna raya visible de corte. \\
+\hline
+\end{tabular}
+\end{table}
+
+Promediar los resultados de varios recortes sobre una misma zona de venas logra difuminar mágicamente las líneas de corte, generando un mapa predictivo fluido, natural y continuo.
+
+\subsection{El Entrenamiento: Validación Cruzada y Controladores de Seguridad}
+El entorno experimental se configuró utilizando una semilla estática para garantizar que cualquier ejecución independiente obtenga exactamente los mismos resultados, eliminando la variabilidad estocástica. Se programó el optimizador estadístico \textit{Adam} con una tasa de aprendizaje de inicio suave, procesando lotes de 16 parches a la vez, con un límite máximo de 75 épocas de estudio.
+
+En lugar de depender de una única división rígida, la fase de entrenamiento se sustenta en una estrategia de validación cruzada estructurada en 5 pliegues (\textit{K-Fold Cross-Validation}). Esta técnica es fundamental y una decisión de diseño crítica cuando se trabaja con conjuntos médicos tan sumamente reducidos, ya que asegura que la evaluación del modelo sea sólida, rotando los datos sistemáticamente para que cada muestra participe tanto en el aprendizaje como en la validación, eliminando sesgos provocados por una partición azarosa afortunada.
+
+Para evitar el sobreajuste clínico, se utilizaron controladores de seguridad automáticos (\textit{callbacks}) que rigen la paciencia de la red:
+\begin{itemize}
+    \item \textbf{ReduceLROnPlateau}: Si el modelo se atasca y no mejora su nota DICE durante 6 iteraciones, reduce la agresividad de aprendizaje a la mitad, refinando los pesos microscópicamente.
+    \item \textbf{ModelCheckpoint}: Guarda un estado de seguridad de manera instantánea cada vez que la red alcanza un nuevo máximo histórico de rendimiento.
+    \item \textbf{EarlyStopping}: Si la red colapsa y no mejora durante 20 iteraciones, detiene el proceso previniendo la memorización destructiva y rescata el mejor estado guardado.
+\end{itemize}
+
+\section{Resultados y Conclusiones}
+
+\subsection{Exposición de Hallazgos Obtenidos}
+Tras configurar el entorno optimizado, se ejecutó el proceso de aprendizaje profundo a través de la validación cruzada. El resultado final sobre el conjunto de test (evaluado de forma independiente contra los dos expertos clínicos, tal y como dictaban los objetivos del estudio) superó sustancialmente las expectativas mínimas marcadas. 
+
+Concretamente, el modelo entrenado final logró alcanzar un \textbf{Coeficiente DICE promedio de 0.8364} y un \textbf{Índice IoU de 0.7188} en la evaluación dual sobre el conjunto de test. Estas métricas certifican matemáticamente que el sistema es capaz de superar holgadamente la barrera exigida del $0.75$, validando empíricamente que la red neuronal encuentra capilares con una agudeza comparable a la convergencia de dos profesionales médicos experimentados.
+
+A nivel puramente visual, se consiguió solventar el problema estético de las inferencias fragmentadas. Tal como demuestra el algoritmo de la Tabla \ref{tab:pseudocode2}, las máscaras predichas en forma de recortes son fundidas promediando el solapamiento. El resultado final (Fig. \ref{fig:predictions_full}) ofrece reconstrucciones inmaculadas de la vasculatura retiniana completa en su resolución original. Al prescindir de fronteras de corte artificiales, la red capilar presenta una continuidad perfecta, facilitando al especialista un mapa visual fluido.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{minipage}{0.32\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{demo_07_pred_patch.png}
+        \\ \vspace{0.2cm} \small (a) Parche Aislado
+    \end{minipage}\hfill
+    \begin{minipage}{0.64\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{demo_08_pred_full.png}
+        \\ \vspace{0.2cm} \small (b) Reconstrucción Continua
+    \end{minipage}
+    \caption{Comparativa visual entre la inferencia matemática cruda y el ensamblado final continuo. (a) La red devuelve pequeños bloques cuadrados sin contexto. (b) Resultado del fundido superpuesto: los parches se promedian para restaurar la topología vascular completa sin ``costuras'', ofreciendo un mapa idóneo para diagnóstico.}
+    \label{fig:predictions_full}
+\end{figure}
+
+\subsection{Análisis Crítico de Errores y Limitaciones}
+Aunque los resultados cuantitativos y cualitativos son sobresalientes, una auditoría rigurosa de las predicciones revela dos barreras fundamentales en la segmentación médica automatizada. 
+
+En primer lugar, existe una clara limitación topológica originada por la \textbf{ambigüedad clínica inherente} o \textit{Inter-observer variability}. Alcanzar un Coeficiente DICE perfecto (1.0) es matemáticamente imposible en este dominio clínico. Dado que la red se evalúa dualmente contra dos oftalmólogos que discrepan sistemáticamente entre sí en la delimitación de las venas más finas, el modelo a menudo es penalizado por predecir una ramificación tenue que el primer experto obvió por error humano, pero que el segundo experto sí etiquetó. En este sentido, la Inteligencia Artificial está jugando contra un techo de cristal de subjetividad humana.
+
+En segundo lugar, a nivel puramente morfológico, los falsos negativos (errores de omisión) del modelo se concentran casi en su totalidad en los \textbf{micro-capilares distales} ubicados en la extrema periferia del globo ocular. Estas ramificaciones periféricas tienen un grosor de apenas 1 o 2 píxeles y sufren de un desvanecimiento óptico natural provocado por la curvatura de la retina, camuflándose con el fondo negro a pesar del agresivo filtro CLAHE empleado en el preprocesamiento. Asimismo, de forma esporádica se observan micro-falsos positivos en los contornos limítrofes del \textbf{disco óptico} (el punto brillante donde el nervio óptico se conecta al ojo), ya que su fuerte halo reflectante genera bordes duros que los filtros convolucionales a veces confunden con paredes capilares.
+
+\subsection{Conclusiones y Cierre del Estudio}
+El desarrollo y la experimentación detallada de este informe demuestran la enorme valía práctica de las arquitecturas neuronales convolucionales (U-Net) en imagen médica, especialmente en escenarios donde la anotación masiva es inaccesible. Se ha comprobado que la escasez crítica de fotografías iniciales (apenas 20 muestras de entrenamiento) puede superarse de manera sobresaliente apoyándose en técnicas de fragmentación geométrica (\textit{Patching}) y aumento de la dimensionalidad de los datos.
+
+Las decisiones de diseño tomadas durante el preprocesamiento —muy especialmente la extracción del canal verde unida al filtro de ecualización adaptativa local CLAHE— han demostrado no ser un mero embellecimiento visual. Por el contrario, han sido determinantes a nivel de ingeniería: iluminar capilares minúsculos ocultos en zonas de bajo contraste proporcionó a la U-Net un mapa de gradientes mucho más definido. Además, el equilibrar la función de coste (\textit{BCE + Dice Loss}) fue el punto de anclaje que permitió al modelo sobreponerse al extremo desbalance de clases de la retina.
+
+A modo de trabajo futuro y cierre, la alta modularidad lograda al extraer los hiperparámetros a un sistema de configuración externa, sienta las bases para explorar arquitecturas más profundas. Integrar mecanismos atencionales (\textit{Attention Gates}) podría ayudar a la red a discernir aún mejor el tejido difuso en los extremos más finos de las ramificaciones, consolidando este proyecto como el embrión de una herramienta de asistencia diagnóstica de segunda opinión oftalmológica plenamente funcional.
+
+\begin{thebibliography}{99}
+
+\bibitem{ref1}
+M. Vakalopoulou, S. Christodoulidis, N. Burgos, O. Colliot, V. Lepetit, ``Deep learning: basics and convolutional neural networks (CNN),'' \textit{Machine Learning for Brain Disorders}, 2023. [Online]. Disponible en: \url{https://hal.science/hal-03957224v2}
+
+\bibitem{ref2}
+Dot CSV, ``¡Redes Neuronales CONVOLUCIONALES! ¿Cómo funcionan?,'' YouTube. [Online]. Disponible en: \url{https://www.youtube.com/watch?v=V8j1oENVz00}
+
+\bibitem{ref3}
+O. Ronneberger, P. Fischer, T. Brox, ``U-Net: Convolutional Networks for Biomedical Image Segmentation,'' \textit{Medical Image Computing and Computer-Assisted Intervention – MICCAI 2015}, Springer, pp. 234-241, 2015. [Online]. Disponible en: \url{https://arxiv.org/abs/1505.04597}
+
+\bibitem{ref4}
+S. Abdusamatov, ``Biomedical Image Segmentation with U-Net,'' Kaggle. [Online]. Disponible en: \url{https://www.kaggle.com/code/saidislombek/biomedical-image-segmentation-with-u-net}
+
+\bibitem{ref5}
+Google, ``Introducción a Tensor Flow.'' Documentación oficial. [Online]. Disponible en: \url{https://www.tensorflow.org/learn?hl=es-419}
+
+\bibitem{ref6}
+Google, ``Guía Keras.'' Documentación oficial de la API. [Online]. Disponible en: \url{https://www.tensorflow.org/guide/keras?hl=es-419}
+
+\bibitem{ref7}
+J. Staal, M. D. Abramoff, M. Niemeijer, M. A. Viergever, B. van Ginneken, ``Ridge-based vessel segmentation in color images of the retina,'' \textit{IEEE Transactions on Medical Imaging}, vol. 23, no. 4, pp. 501-509, April 2004. [Online]. Disponible en: \url{https://www.kaggle.com/datasets/zionfuo/drive2004}
+
+\bibitem{ref_teoria}
+Dpto. de Ciencias de la Computación e Inteligencia Artificial, ``Redes neuronales,'' \textit{Material Teórico de la Asignatura Inteligencia Artificial}, Universidad de Sevilla.
+
+\bibitem{ref_keras}
+Dpto. de Ciencias de la Computación e Inteligencia Artificial, ``Práctica 2: Redes neuronales (Keras),'' \textit{Material de Laboratorio de la Asignatura Inteligencia Artificial}, Universidad de Sevilla.
+
+\end{thebibliography}
+
+\end{document}
