@@ -29,7 +29,7 @@ dieviccam@alum.us.es (RXW1249)}
 \maketitle
 
 \begin{abstract}
-El objetivo principal de este trabajo es construir, entrenar y evaluar una red neuronal convolucional basada en la arquitectura U-Net para segmentar automáticamente los vasos sanguíneos en imágenes del fondo de ojo pertenecientes al dataset público DRIVE 2004. Dada la complejidad típica de las imágenes oftalmológicas (ruido, iluminación irregular y bajo contraste) y la escasez de muestras etiquetadas, se ha diseñado un pipeline de preprocesamiento, aumento de datos y extracción de parches (patching). El preprocesamiento mejora el contraste de los capilares a través de técnicas como la extracción del canal verde, la Ecualización Adaptativa del Histograma (CLAHE) y la corrección Gamma. A nivel arquitectónico, la red U-Net se ha adaptado mediante el uso de Dropout y Batch Normalization para prevenir el sobreajuste. Empleando una función de coste combinada equilibrada (0.5 * BCE + 0.5 * Dice Loss), el modelo es capaz de ofrecer una segmentación precisa de las estructuras capilares. Este sistema sienta las bases para superar los umbrales mínimos de rendimiento estipulados (DICE score $> 0.75$) frente a validaciones manuales de expertos clínicos, contribuyendo a la automatización del diagnóstico en patologías como la retinopatía diabética.
+El objetivo principal de este trabajo es construir, entrenar y evaluar una red neuronal convolucional basada en la arquitectura U-Net para segmentar automáticamente los vasos sanguíneos en imágenes del fondo de ojo pertenecientes al dataset público DRIVE 2004. Dada la complejidad típica de las imágenes oftalmológicas (ruido, iluminación irregular y bajo contraste) y la escasez de muestras etiquetadas, se ha diseñado un pipeline de preprocesamiento, aumento de datos y extracción de parches (patching). El preprocesamiento estandariza la señal visual a través de técnicas como la conversión a escala de grises y la normalización matemática de la intensidad. A nivel arquitectónico, la red U-Net se ha adaptado mediante el uso de Dropout y Batch Normalization para prevenir el sobreajuste. Empleando una función de coste combinada equilibrada (0.5 * BCE + 0.5 * Dice Loss), el modelo es capaz de ofrecer una segmentación precisa de las estructuras capilares. Este sistema sienta las bases para superar los umbrales mínimos de rendimiento estipulados (DICE score $> 0.75$) frente a validaciones manuales de expertos clínicos, contribuyendo a la automatización del diagnóstico en patologías como la retinopatía diabética.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -120,20 +120,20 @@ Debido a las grandes irregularidades en la adquisición fotográfica (reflejos d
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{demo_02_preprocessing.png}
-    \caption{Esquema del flujo de preprocesamiento de imágenes. Muestra los pasos progresivos: extracción matemática del canal verde, seguido de la aplicación local del algoritmo CLAHE para mejorar el contraste oscuro sin alterar el resto, finalizando con la normalización de la imagen.}
+    \caption{Esquema del flujo de preprocesamiento de imágenes. Muestra los pasos progresivos en el pipeline: la imagen a color es convertida a escala de grises (y redimensionada si procede), para finalizar con la normalización matemática de las intensidades de los píxeles al rango [0, 1].}
     \label{fig:preprocessing}
 \end{figure}
 
-El proceso arranca con la \textbf{Extracción del Canal Verde (Green Channel)}. Dado que la hemoglobina de nuestra sangre absorbe especialmente la luz que se emite en la franja del rango verde del espectro, este canal por sí solo es el que ofrece un contraste muchísimo mayor entre los vasos oscuros y el resto del globo ocular iluminado. Utilizando funciones de OpenCV (\texttt{cv2.cvtColor}), la imagen a color se transforma a una escala de grises conservando únicamente esta valiosa información óptica.
+El proceso arranca con la \textbf{Conversión a Escala de Grises (Grayscale)}. Utilizando funciones estándar de conversión de color, la imagen a color RGB se transforma a un único canal de escala de grises. Esto simplifica enormemente el volumen de datos que debe procesar la red neuronal, manteniendo intacta la información geométrica y topológica de la red capilar, que es el verdadero objetivo de la segmentación.
 
-A continuación, entra en juego la \textbf{Ecualización Adaptativa del Histograma Limitada por Contraste (CLAHE)}. A diferencia de una ecualización de luz estándar (que lavaría toda la imagen dejándola plana), CLAHE divide la imagen en pequeñas cuadrículas y ecualiza la iluminación de cada región de manera independiente. Si detecta un exceso de ruido en alguna zona plana de la retina, el algoritmo corta el contraste de raíz para no generar artefactos visuales artificiales en el fondo sano.
+Tras la conversión a grises, en la configuración actual se aplica un redimensionado (\textit{Resize}) de las imágenes para estandarizar las resoluciones antes de parchear. 
 
-Finalmente, para que la red neuronal pueda «digerir» mejor los números, las intensidades de los píxeles (originalmente en el rango clásico informático de 0 a 255) se dividen entre 255.0. Esto las convierte en valores decimales \texttt{float32} en el rango continuo de 0 a 1, un paso obligatorio para que las matemáticas del descenso del gradiente funcionen correctamente. Los resultados espectaculares de estos filtros se pueden observar en la Fig. \ref{fig:processed_samples}.
+Finalmente, para que la red neuronal pueda «digerir» mejor los números, las intensidades de los píxeles (originalmente en el rango clásico informático de 0 a 255) se someten a un proceso de \textbf{Normalización}, dividiéndolas entre 255.0. Esto las convierte en valores decimales \texttt{float32} en el rango continuo de 0 a 1, un paso obligatorio para que las matemáticas del descenso del gradiente funcionen correctamente. Los resultados de estos recortes finales se pueden observar en la Fig. \ref{fig:processed_samples}.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{demo_06_processed_samples.png}
-    \caption{Comparativa visual tras el preprocesamiento. A la izquierda se observa la imagen que recibe la red (tras extraer el canal verde y aplicar CLAHE) y a la derecha lo que debe aprender a predecir. La visibilidad de los vasos ha mejorado sustancialmente, incluso en las zonas más oscuras del ojo.}
+    \caption{Muestras procesadas finales (parches) listas para entrenar. Arriba se observan los recortes en escala de grises que recibe la red, y abajo sus máscaras de predicción asociadas. Se aprecian los efectos del relleno (\textit{padding}) reflectivo en los recortes ubicados en los márgenes de la imagen.}
     \label{fig:processed_samples}
 \end{figure}
 
@@ -179,7 +179,7 @@ Para gestionar qué ocurre en los márgenes de la fotografía cuando el tamaño 
 \end{tabular}
 \end{table}
 
-Gracias a este sencillo pero ingenioso método, de 20 simples fotografías se logran extraer decenas de miles de pequeños bloques de datos listos para alimentar a la Inteligencia Artificial. 
+Gracias a este sencillo pero ingenioso método, de las fotografías originales se logran extraer un total de 3.000 pequeños bloques de datos (1.600 para entrenamiento, 400 para validación y 1.000 para test) listos para alimentar a la Inteligencia Artificial. 
 
 \subsection{Superación del Cuello de Botella de E/S: Empaquetado de Datos}
 Un obstáculo técnico significativo afrontado durante esta fase fue el cuello de botella generado por las operaciones de Entrada/Salida (E/S) del almacenamiento físico. El proceso de fragmentación detallado anteriormente produce miles de pequeños recortes. Si el hardware tuviera que abrir y leer cada archivo uno por uno iterativamente, la latencia del disco limitaría drásticamente la velocidad de cómputo de la tarjeta gráfica (GPU). Para solucionar este impedimento, se implementó una rutina de empaquetado que consolida todos los parches procesados en grandes bloques contiguos de memoria comprimida. Esto multiplicó radicalmente la eficiencia de la ingesta de datos, permitiendo explotar al máximo la aceleración por hardware.
@@ -189,7 +189,7 @@ Adicionalmente, durante el proceso de preparación se emplea la técnica de \tex
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{demo_03_augmentations.png}
-    \caption{Demostración visual del aumento de datos en memoria. Al vuelo, se aplican rotaciones de 90$^\circ$, 180$^\circ$ y 270$^\circ$, junto con volteos horizontales y verticales tipo espejo. También se incluye a veces algo de ruido aleatorio para acostumbrar a la red a no fiarse de imágenes perfectas.}
+    \caption{Demostración visual del aumento de datos en memoria. Al vuelo, se aplican modificaciones geométricas estrictas: rotaciones de 90$^\circ$ (Rot90) y volteos tipo espejo tanto horizontales (H-Flip) como verticales (V-Flip).}
     \label{fig:augmentations}
 \end{figure}
 
@@ -312,12 +312,12 @@ Aunque los resultados cuantitativos y cualitativos son sobresalientes, una audit
 
 En primer lugar, existe una clara limitación topológica originada por la \textbf{ambigüedad clínica inherente} o \textit{Inter-observer variability}. Alcanzar un Coeficiente DICE perfecto (1.0) es matemáticamente imposible en este dominio clínico. Dado que la red se evalúa dualmente contra dos oftalmólogos que discrepan sistemáticamente entre sí en la delimitación de las venas más finas, el modelo a menudo es penalizado por predecir una ramificación tenue que el primer experto obvió por error humano, pero que el segundo experto sí etiquetó. En este sentido, la Inteligencia Artificial está jugando contra un techo de cristal de subjetividad humana.
 
-En segundo lugar, a nivel puramente morfológico, los falsos negativos (errores de omisión) del modelo se concentran casi en su totalidad en los \textbf{micro-capilares distales} ubicados en la extrema periferia del globo ocular. Estas ramificaciones periféricas tienen un grosor de apenas 1 o 2 píxeles y sufren de un desvanecimiento óptico natural provocado por la curvatura de la retina, camuflándose con el fondo negro a pesar del agresivo filtro CLAHE empleado en el preprocesamiento. Asimismo, de forma esporádica se observan micro-falsos positivos en los contornos limítrofes del \textbf{disco óptico} (el punto brillante donde el nervio óptico se conecta al ojo), ya que su fuerte halo reflectante genera bordes duros que los filtros convolucionales a veces confunden con paredes capilares.
+En segundo lugar, a nivel puramente morfológico, los falsos negativos (errores de omisión) del modelo se concentran casi en su totalidad en los \textbf{micro-capilares distales} ubicados en la extrema periferia del globo ocular. Estas ramificaciones periféricas tienen un grosor de apenas 1 o 2 píxeles y sufren de un desvanecimiento óptico natural provocado por la curvatura de la retina, camuflándose con el fondo más oscuro a pesar de la normalización empleada en el preprocesamiento. Asimismo, de forma esporádica se observan micro-falsos positivos en los contornos limítrofes del \textbf{disco óptico} (el punto brillante donde el nervio óptico se conecta al ojo), ya que su fuerte halo reflectante genera bordes duros que los filtros convolucionales a veces confunden con paredes capilares.
 
 \subsection{Conclusiones y Cierre del Estudio}
 El desarrollo y la experimentación detallada de este informe demuestran la enorme valía práctica de las arquitecturas neuronales convolucionales (U-Net) en imagen médica, especialmente en escenarios donde la anotación masiva es inaccesible. Se ha comprobado que la escasez crítica de fotografías iniciales (apenas 20 muestras de entrenamiento) puede superarse de manera sobresaliente apoyándose en técnicas de fragmentación geométrica (\textit{Patching}) y aumento de la dimensionalidad de los datos.
 
-Las decisiones de diseño tomadas durante el preprocesamiento —muy especialmente la extracción del canal verde unida al filtro de ecualización adaptativa local CLAHE— han demostrado no ser un mero embellecimiento visual. Por el contrario, han sido determinantes a nivel de ingeniería: iluminar capilares minúsculos ocultos en zonas de bajo contraste proporcionó a la U-Net un mapa de gradientes mucho más definido. Además, el equilibrar la función de coste (\textit{BCE + Dice Loss}) fue el punto de anclaje que permitió al modelo sobreponerse al extremo desbalance de clases de la retina.
+Las decisiones de diseño tomadas durante el preprocesamiento —muy especialmente la conversión robusta a escala de grises y la normalización matemática— han demostrado ser determinantes a nivel de ingeniería: simplificar el volumen de datos proporcionó a la U-Net un mapa de gradientes directo y conciso, evitando el ruido cromático. Además, el equilibrar la función de coste (\textit{BCE + Dice Loss}) fue el punto de anclaje que permitió al modelo sobreponerse al extremo desbalance de clases de la retina.
 
 A modo de trabajo futuro y cierre, la alta modularidad lograda al extraer los hiperparámetros a un sistema de configuración externa, sienta las bases para explorar arquitecturas más profundas. Integrar mecanismos atencionales (\textit{Attention Gates}) podría ayudar a la red a discernir aún mejor el tejido difuso en los extremos más finos de las ramificaciones, consolidando este proyecto como el embrión de una herramienta de asistencia diagnóstica de segunda opinión oftalmológica plenamente funcional.
 
