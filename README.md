@@ -219,7 +219,7 @@ Para cumplir con el enunciado, la salida de inferencia debe conservar el tamaño
 python -m pip install kagglehub
 python scripts/download_drive.py
 
-# 2. Preprocesar: normalización, parcheado 256×256 y particiones reproducibles
+# 2. Preprocesar: normalización, parcheado 128×128 y particiones reproducibles
 python scripts/prepare_data.py
 ```
 
@@ -247,5 +247,4 @@ El resultado del entrenamiento se guarda en `models/final/` y los logs/checkpoin
 
 ## Estado actual
 
-El pipeline de datos está completamente implementado para DRIVE 2004: descarga automática del dataset, preprocesado (normalización, máscaras manuales de training, parcheado 256×256), aumento de datos y generación de particiones reproducibles. El siguiente paso es el entrenamiento de la U-Net.
- expertos médicos superando las métricas exigidas. El informe en LaTeX con los resultados está disponible en `docs/proyecto/memoria.tex`.
+El proyecto está completamente implementado para DRIVE 2004: descarga automática del dataset, preprocesado (normalización, conversión a escala de grises, parcheado 128×128), aumento de datos y generación de particiones reproducibles. El entrenamiento de la U-Net se ha realizado con validación cruzada de 5 pliegues, obteniendo un DICE promedio de 0.8115 sobre el conjunto de test evaluado contra ambos expertos médicos, superando las métricas exigidas. El informe en LaTeX con los resultados está disponible en `docs/proyecto/memoria.tex`.

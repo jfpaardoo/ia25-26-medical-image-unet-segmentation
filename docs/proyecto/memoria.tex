@@ -179,7 +179,7 @@ Para gestionar qué ocurre en los márgenes de la fotografía cuando el tamaño 
 \end{tabular}
 \end{table}
 
-Gracias a este sencillo pero ingenioso método, de las fotografías originales se logran extraer un total de 3.000 pequeños bloques de datos (1.600 para entrenamiento, 400 para validación y 1.000 para test) listos para alimentar a la Inteligencia Artificial. 
+Gracias a este sencillo pero ingenioso método, de las fotografías originales se logran extraer un total de 3.000 pequeños bloques de datos: 2.000 procedentes del conjunto de entrenamiento (que en cada iteración del K-Fold se reparten en aproximadamente 1.600 para aprendizaje y 400 para validación) y 1.000 para test, listos para alimentar a la Inteligencia Artificial. 
 
 \subsection{Superación del Cuello de Botella de E/S: Empaquetado de Datos}
 Un obstáculo técnico significativo afrontado durante esta fase fue el cuello de botella generado por las operaciones de Entrada/Salida (E/S) del almacenamiento físico. El proceso de fragmentación detallado anteriormente produce miles de pequeños recortes. Si el hardware tuviera que abrir y leer cada archivo uno por uno iterativamente, la latencia del disco limitaría drásticamente la velocidad de cómputo de la tarjeta gráfica (GPU). Para solucionar este impedimento, se implementó una rutina de empaquetado que consolida todos los parches procesados en grandes bloques contiguos de memoria comprimida. Esto multiplicó radicalmente la eficiencia de la ingesta de datos, permitiendo explotar al máximo la aceleración por hardware.
@@ -219,7 +219,7 @@ El verdadero secreto mágico de U-Net son las \textbf{Skip Connections} (conexio
 \toprule
 \textbf{Componente} & \textbf{Valor Empleado} & \textbf{Justificación} \\
 \midrule
-Canales de Entrada & 1 (Escala Grises) & Únicamente pasamos el canal verde optimizado \\
+Canales de Entrada & 1 (Escala Grises) & Conversión a escala de grises por luminancia ponderada \\
 Canales de Salida & 1 (Blanco/Negro) & Tarea de segmentación Binaria \\
 Niveles Profundos & 4 bloques & Ampliar el campo receptivo global \\
 Filtros Iniciales & Solo 16 filtros & Limitar la capacidad para evitar memorización rápida \\
@@ -271,7 +271,7 @@ Para resolver este fallo estético y funcional, en la fase de inferencia (\textt
 Promediar los resultados de varios recortes sobre una misma zona de venas logra difuminar mágicamente las líneas de corte, generando un mapa predictivo fluido, natural y continuo.
 
 \subsection{El Entrenamiento: Validación Cruzada y Controladores de Seguridad}
-El entorno experimental se configuró utilizando una semilla estática (valor 394867) para garantizar que cualquier ejecución independiente obtenga exactamente los mismos resultados, eliminando la variabilidad estocástica. Se programó el optimizador estadístico \textit{Adam} con una tasa de aprendizaje de inicio suave, procesando lotes de 16 parches a la vez, con un límite máximo de 75 épocas de estudio.
+El entorno experimental se configuró utilizando una semilla estática (valor 394867) para garantizar que cualquier ejecución independiente obtenga exactamente los mismos resultados, eliminando la variabilidad estocástica. Se programó el optimizador estadístico \textit{Adam} con una tasa de aprendizaje inicial de $10^{-3}$, procesando lotes de 16 parches a la vez, con un límite máximo de 75 épocas de estudio.
 
 En lugar de depender de una única división rígida, la fase de entrenamiento se sustenta en una estrategia de validación cruzada estructurada en 5 pliegues (\textit{K-Fold Cross-Validation}). Esta técnica es fundamental y una decisión de diseño crítica cuando se trabaja con conjuntos médicos tan sumamente reducidos, ya que asegura que la evaluación del modelo sea sólida, rotando los datos sistemáticamente para que cada muestra participe tanto en el aprendizaje como en la validación, eliminando sesgos provocados por una partición azarosa afortunada.
 
