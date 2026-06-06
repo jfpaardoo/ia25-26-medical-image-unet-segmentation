@@ -33,7 +33,7 @@ El objetivo principal de este trabajo es construir, entrenar y evaluar una red n
 \end{abstract}
 
 \begin{IEEEkeywords}
-Segmentación de Imágenes Médicas, Aprendizaje Profundo, Redes Neuronales Convolucionales, U-Net, DRIVE 2004, Preprocesamiento, CLAHE, Retinopatía Diabética, Patching, Inferencia, Skip Connections.
+Segmentación de Imágenes Médicas, Aprendizaje Profundo, Redes Neuronales Convolucionales, U-Net, DRIVE 2004, Preprocesamiento, Retinopatía Diabética, Patching, Inferencia, Skip Connections.
 \end{IEEEkeywords}
 
 \section{Introducción}
@@ -65,7 +65,7 @@ Como se detalla en la Fig. \ref{fig:raw_samples}, las imágenes base son fotogra
 \subsection{División de los Datos Clínicos}
 La distribución de los datos se estructura en dos conjuntos estrictamente separados para asegurar una evaluación justa, evitando que el modelo memorice las respuestas:
 \begin{itemize}
-    \item \textbf{Conjunto de Entrenamiento (Training Set):} Contiene 20 imágenes con sus máscaras del campo de visión (FOV) y una máscara de segmentación perfecta (Ground Truth) etiquetada laboriosamente a mano por un oftalmólogo experto. En nuestra implementación informática, este conjunto se subdivide dinámicamente usando una proporción 80/20 para el entrenamiento y la validación interna del algoritmo.
+    \item \textbf{Conjunto de Entrenamiento (Training Set):} Contiene 20 imágenes con sus máscaras del campo de visión (FOV) y una máscara de segmentación perfecta (Ground Truth) etiquetada laboriosamente a mano por un oftalmólogo experto. En nuestra implementación informática, la validación interna del algoritmo se gestiona mediante una estrategia de Validación Cruzada en 5 pliegues (\textit{K-Fold Cross-Validation}), donde cada iteración utiliza aproximadamente el 80\% de estos datos para entrenar y el 20\% restante para validar, rotando sistemáticamente las particiones.
     \item \textbf{Conjunto de Prueba (Test Set):} Incluye las 20 imágenes restantes. A diferencia del entrenamiento, este conjunto dispone de segmentaciones realizadas por dos expertos clínicos independientes. Esto es crucial, ya que permite evaluar el rendimiento del algoritmo comparándolo directamente contra la discrepancia natural que existe entre dos profesionales humanos.
 \end{itemize}
 
@@ -145,7 +145,7 @@ En lugar de achicar toda la imagen para que encaje en la red (lo que destruiría
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{demo_04_patching.png}
-    \caption{Proceso de fragmentación en parches o mosaicos (\textit{Patching}). La imagen principal se divide en cientos de pequeños bloques de $128 \times 128$ píxeles superpuestos entre sí. Cada pequeño cuadrado servirá como una imagen independiente para engañar a la red y hacerle creer que tiene un dataset inmenso.}
+    \caption{Proceso de fragmentación en parches o mosaicos (\textit{Patching}). La imagen principal se divide en bloques de $128 \times 128$ píxeles sin solapamiento durante el entrenamiento (stride igual al tamaño del parche). Cada pequeño cuadrado sirve como una imagen independiente, multiplicando enormemente el número de muestras disponibles para el aprendizaje.}
     \label{fig:patching}
 \end{figure}
 
@@ -241,7 +241,7 @@ La entropía cruzada binaria (\textit{BCE}) aporta mucha estabilidad a nivel de 
 \subsection{Proceso de Predicción e Inferencia Real}
 Cuando por fin terminamos de entrenar y el modelo se enfrenta a la vida real, debe procesar imágenes completas y gigantes que nunca ha visto. Como la red solo entiende de parches de $128 \times 128$, tenemos que dividir la imagen grande, pasar todos los pedacitos por la red y luego volver a pegarlos como un puzzle. El problema de este puzzle es que unir los bloques separados suele causar cortes muy feos y visibles en las zonas donde dos parches se tocan (como una cuadrícula mal pegada). 
 
-Para resolver este fallo estético y funcional, en la fase final (\texttt{inference.py}) decidimos que los parches se solapen mucho, y donde haya solape, el algoritmo simplemente promedia las opiniones de la red, tal y como se detalla paso a paso en la Tabla \ref{tab:pseudocode2}.
+Para resolver este fallo estético y funcional, en la fase de inferencia (\texttt{predict.py}) se emplea un stride de la mitad del tamaño del parche (64 píxeles frente a los 128 del entrenamiento), generando un solapamiento del 50\% entre parches adyacentes. Donde existe solape, el algoritmo promedia las predicciones de la red, tal y como se detalla paso a paso en la Tabla \ref{tab:pseudocode2}.
 
 \begin{table}[htbp]
 \centering
@@ -271,7 +271,7 @@ Para resolver este fallo estético y funcional, en la fase final (\texttt{infere
 Promediar los resultados de varios recortes sobre una misma zona de venas logra difuminar mágicamente las líneas de corte, generando un mapa predictivo fluido, natural y continuo.
 
 \subsection{El Entrenamiento: Validación Cruzada y Controladores de Seguridad}
-El entorno experimental se configuró utilizando una semilla estática para garantizar que cualquier ejecución independiente obtenga exactamente los mismos resultados, eliminando la variabilidad estocástica. Se programó el optimizador estadístico \textit{Adam} con una tasa de aprendizaje de inicio suave, procesando lotes de 16 parches a la vez, con un límite máximo de 75 épocas de estudio.
+El entorno experimental se configuró utilizando una semilla estática (valor 394867) para garantizar que cualquier ejecución independiente obtenga exactamente los mismos resultados, eliminando la variabilidad estocástica. Se programó el optimizador estadístico \textit{Adam} con una tasa de aprendizaje de inicio suave, procesando lotes de 16 parches a la vez, con un límite máximo de 75 épocas de estudio.
 
 En lugar de depender de una única división rígida, la fase de entrenamiento se sustenta en una estrategia de validación cruzada estructurada en 5 pliegues (\textit{K-Fold Cross-Validation}). Esta técnica es fundamental y una decisión de diseño crítica cuando se trabaja con conjuntos médicos tan sumamente reducidos, ya que asegura que la evaluación del modelo sea sólida, rotando los datos sistemáticamente para que cada muestra participe tanto en el aprendizaje como en la validación, eliminando sesgos provocados por una partición azarosa afortunada.
 
@@ -280,6 +280,7 @@ Para evitar el sobreajuste clínico, se utilizaron controladores de seguridad au
     \item \textbf{ReduceLROnPlateau}: Si el modelo se atasca y no mejora su nota DICE durante 6 iteraciones, reduce la agresividad de aprendizaje a la mitad, refinando los pesos microscópicamente.
     \item \textbf{ModelCheckpoint}: Guarda un estado de seguridad de manera instantánea cada vez que la red alcanza un nuevo máximo histórico de rendimiento.
     \item \textbf{EarlyStopping}: Si la red colapsa y no mejora durante 20 iteraciones, detiene el proceso previniendo la memorización destructiva y rescata el mejor estado guardado.
+    \item \textbf{TensorBoard}: Registra las métricas y las curvas de aprendizaje de cada época en un directorio de logs, permitiendo la monitorización visual interactiva del progreso del entrenamiento en tiempo real.
 \end{itemize}
 
 \section{Resultados y Conclusiones}
