@@ -28,7 +28,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 RAW_DIR = REPO_ROOT / "data" / "raw"
-KAGGLE_DATASET_ID = "andrewmvd/drive-digital-retinal-images-for-vessel-extraction"
+KAGGLE_DATASET_ID = "zionfuo/drive2004"
 
 
 def _download_dataset() -> Path:
@@ -109,63 +109,97 @@ def _find_drive_file(directory: Path, prefix: str, *, include: tuple[str, ...] =
     return candidates[0]
 
 
-def _organize_split(split_root: Path, split_name: str) -> dict[str, int]:
-    images_src = split_root / "images"
-    primary_masks_src = split_root / "1st_manual"
-    fov_src = split_root / "mask"
-    split_dir = RAW_DIR / split_name
+def _setup_directories(split_dir: Path, split_name: str) -> tuple[Path, Path, Path, Path | None]:
     images_dst = split_dir / "images"
-    masks_dst = split_dir / "masks"
     fov_dst = split_dir / "fov_masks"
+    if split_name == "test":
+        primary_dst = split_dir / "masks_expert1"
+        secondary_dst = split_dir / "masks_expert2"
+        dirs = [images_dst, fov_dst, primary_dst, secondary_dst]
+    else:
+        primary_dst = split_dir / "masks"
+        secondary_dst = None
+        dirs = [images_dst, fov_dst, primary_dst]
 
-    for directory in (images_dst, masks_dst, fov_dst):
-        if directory.exists():
-            shutil.rmtree(directory)
-        directory.mkdir(parents=True, exist_ok=True)
+    for d in dirs:
+        if d is not None:
+            if d.exists():
+                shutil.rmtree(d)
+            d.mkdir(parents=True, exist_ok=True)
+    return images_dst, fov_dst, primary_dst, secondary_dst
 
-    image_count = 0
-    mask_count = 0
-    missing_primary_masks: list[str] = []
-    missing_fov_masks: list[str] = []
 
-    for image_path in sorted(images_src.rglob("*")):
+def _validate_split(split_name: str, counts: dict, missing: dict) -> None:
+    if counts["images"] != 20:
+        raise RuntimeError(f"Expected 20 images in DRIVE {split_name}, found {counts['images']}")
+    if counts["masks"] != 20:
+        raise RuntimeError(f"Expected 20 primary masks in DRIVE {split_name}, found {counts['masks']}")
+    if missing["primary"]:
+        raise RuntimeError(f"Missing primary masks in DRIVE {split_name}: {', '.join(sorted(missing['primary']))}")
+    if missing["fov"]:
+        raise RuntimeError(f"Missing FOV masks in DRIVE {split_name}: {', '.join(sorted(missing['fov']))}")
+    if split_name == "test" and missing["secondary"]:
+        raise RuntimeError(f"Missing secondary masks in DRIVE {split_name}: {', '.join(sorted(missing['secondary']))}")
+
+
+def _process_single_image(
+    image_path: Path, prefix: str, split_name: str,
+    src_dirs: dict[str, Path], dst_dirs: dict[str, Path | None],
+    counts: dict[str, int], missing: dict[str, list[str]]
+) -> None:
+    shutil.copy2(image_path, dst_dirs["images"] / image_path.name) # type: ignore
+    counts["images"] += 1
+
+    mask_path = _find_drive_file(src_dirs["primary"], prefix, include=("manual1", "manual"))
+    if mask_path is not None:
+        _write_png(_binary_mask(mask_path), dst_dirs["primary"] / f"{image_path.stem}.png") # type: ignore
+        counts["masks"] += 1
+    else:
+        missing["primary"].append(image_path.name)
+
+    if split_name == "test" and dst_dirs.get("secondary"):
+        mask2_path = _find_drive_file(src_dirs["secondary"], prefix, include=("manual2", "manual"))
+        if mask2_path is not None:
+            _write_png(_binary_mask(mask2_path), dst_dirs["secondary"] / f"{image_path.stem}.png")
+        else:
+            missing["secondary"].append(image_path.name)
+
+    fov_path = _find_drive_file(src_dirs["fov"], prefix, include=("mask",))
+    if fov_path is not None:
+        _write_png(_binary_mask(fov_path), dst_dirs["fov"] / f"{image_path.stem}.png") # type: ignore
+    else:
+        missing["fov"].append(image_path.name)
+
+
+def _organize_split(split_root: Path, split_name: str) -> dict[str, int]:
+    src_dirs = {
+        "images": split_root / "images",
+        "primary": split_root / "1st_manual",
+        "secondary": split_root / "2nd_manual",
+        "fov": split_root / "mask",
+    }
+    
+    split_dir = RAW_DIR / split_name
+    images_dst, fov_dst, primary_dst, secondary_dst = _setup_directories(split_dir, split_name)
+    dst_dirs: dict[str, Path | None] = {
+        "images": images_dst,
+        "primary": primary_dst,
+        "secondary": secondary_dst,
+        "fov": fov_dst,
+    }
+
+    counts = {"images": 0, "masks": 0}
+    missing: dict[str, list[str]] = {"primary": [], "fov": [], "secondary": []}
+
+    for image_path in sorted(src_dirs["images"].rglob("*")):
         if not image_path.is_file():
             continue
         prefix = _drive_prefix(image_path)
-        if prefix is None:
-            continue
-        target = images_dst / image_path.name
-        shutil.copy2(image_path, target)
-        image_count += 1
+        if prefix is not None:
+            _process_single_image(image_path, prefix, split_name, src_dirs, dst_dirs, counts, missing)
 
-        mask_path = _find_drive_file(primary_masks_src, prefix, include=("manual1", "manual"))
-        if mask_path is not None:
-            _write_png(_binary_mask(mask_path), masks_dst / f"{image_path.stem}.png")
-            mask_count += 1
-        else:
-            if split_name == "training":
-                missing_primary_masks.append(image_path.name)
-
-        fov_path = _find_drive_file(fov_src, prefix, include=("mask",))
-        if fov_path is not None:
-            _write_png(_binary_mask(fov_path), fov_dst / f"{image_path.stem}.png")
-        else:
-            missing_fov_masks.append(image_path.name)
-
-    if image_count != 20:
-        raise RuntimeError(f"Expected 20 images in DRIVE {split_name}, found {image_count}")
-    if split_name == "training" and mask_count != 20:
-        raise RuntimeError(f"Expected 20 primary masks in DRIVE {split_name}, found {mask_count}")
-    if missing_primary_masks:
-        raise RuntimeError(
-            f"Missing primary masks in DRIVE {split_name}: {', '.join(sorted(missing_primary_masks))}"
-        )
-    if missing_fov_masks:
-        raise RuntimeError(
-            f"Missing FOV masks in DRIVE {split_name}: {', '.join(sorted(missing_fov_masks))}"
-        )
-
-    return {"images": image_count, "masks": mask_count}
+    _validate_split(split_name, counts, missing)
+    return counts
 
 
 def main() -> None:
@@ -190,6 +224,8 @@ def main() -> None:
     print(f"  {RAW_DIR / 'training' / 'fov_masks'}/")
     print(f"  {RAW_DIR / 'test' / 'images'}/")
     print(f"  {RAW_DIR / 'test' / 'fov_masks'}/")
+    print(f"  {RAW_DIR / 'test' / 'masks_expert1'}/")
+    print(f"  {RAW_DIR / 'test' / 'masks_expert2'}/")
     print("\nYou can now run:")
     print("    python scripts/prepare_data.py")
 

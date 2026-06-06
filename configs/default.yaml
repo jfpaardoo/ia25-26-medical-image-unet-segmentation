@@ -6,9 +6,9 @@ data:
   raw_dir: data/raw
   processed_dir: data/processed
   splits_dir: data/splits
-  image_size: [256, 256]
-  patch_size: [256, 256]
-  patch_stride: [256, 256]
+  image_size: [584, 565]
+  patch_size: [128, 128]
+  patch_stride: [128, 128]
   mask_format: binary
   use_official_drive_split: true
   augmentation:
@@ -20,17 +20,20 @@ data:
     test: 0.0
 
 training:
-  batch_size: 8
-  epochs: 100
-  learning_rate: 0.0001
+  batch_size: 16
+  epochs: 75
+  learning_rate: 0.001
+  loss: bce_dice
   validation_split: 0.2
   num_workers: 0
 
 model:
   input_channels: 1
   output_channels: 1
-  base_filters: 32
-  dropout_rate: 0.0
+  base_filters: 16
+  depth: 4
+  use_batch_norm: true
+  dropout_rate: 0.25
 
 outputs:
   checkpoints_dir: models/checkpoints

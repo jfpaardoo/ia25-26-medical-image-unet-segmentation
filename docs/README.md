@@ -4,7 +4,7 @@ Esta carpeta agrupa la documentación de referencia del proyecto y queda separad
 
 ## Estructura
 
-- `proyecto/`: norma y enunciado principal del trabajo.
+- `proyecto/`: norma y enunciado principal del trabajo, así como la memoria técnica (LaTeX) y la plantilla original.
 - `teoria/`: PDFs teóricos de apoyo usados para contextualizar el desarrollo.
 
 ## Nota

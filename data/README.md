@@ -17,10 +17,11 @@ data/raw/
 └── test/
     ├── images/
     ├── fov_masks/
+    ├── masks_expert1/
     └── masks_expert2/
 ```
 
-Solo `training/masks/` contiene ground truth de vasos. El split `test/` se conserva para inspección o inferencia, pero no genera muestras supervisadas para entrenamiento.
+`training/masks/` contiene el ground truth usado para entrenar. En `test/` se conservan las dos segmentaciones manuales de expertos y se usan para evaluación comparando la predicción contra ambas máscaras por separado y promediando el DICE final.
 
 ## Flujo de preparación
 
@@ -28,10 +29,9 @@ Solo `training/masks/` contiene ground truth de vasos. El split `test/` se conse
 python -m pip install kagglehub
 python scripts/download_drive.py
 python scripts/prepare_data.py
-python scripts/validate_data_raw.py
 ```
 
-El preprocesado convierte las imágenes a escala de grises, normaliza, genera parches de 256×256 y escribe las particiones en `data/splits/`.
+El preprocesado convierte las imágenes a escala de grises, normaliza, genera parches de 256×256 y escribe las particiones en `data/splits/`. La evaluación del split `test/` debe leer las dos máscaras expertas y calcular la media de sus métricas.
 
 ## Contrato del pipeline
 

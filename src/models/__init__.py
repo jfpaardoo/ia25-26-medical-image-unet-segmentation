@@ -1,1 +1,0 @@
-"""Model factories for segmentation networks."""
