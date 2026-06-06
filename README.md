@@ -223,7 +223,7 @@ python scripts/download_drive.py
 python scripts/prepare_data.py
 ```
 
-Tras la ejecución, el pipeline genera parches de 256×256 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) a partir del split etiquetado de `training/`. El test oficial de DRIVE mantiene sus dos máscaras expertas para evaluación, aunque no se usa como fuente de entrenamiento.
+Tras la ejecución, el pipeline genera parches de 128×128 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) a partir del split etiquetado de `training/`. El test oficial de DRIVE mantiene sus dos máscaras expertas para evaluación, aunque no se usa como fuente de entrenamiento.
 
 El aumento de datos (flip horizontal, flip vertical, rotación 90°) se aplica solo sobre las imágenes de entrenamiento, evitando fuga de datos entre particiones.
 
@@ -248,3 +248,4 @@ El resultado del entrenamiento se guarda en `models/final/` y los logs/checkpoin
 ## Estado actual
 
 El pipeline de datos está completamente implementado para DRIVE 2004: descarga automática del dataset, preprocesado (normalización, máscaras manuales de training, parcheado 256×256), aumento de datos y generación de particiones reproducibles. El siguiente paso es el entrenamiento de la U-Net.
+ expertos médicos superando las métricas exigidas. El informe en LaTeX con los resultados está disponible en `docs/proyecto/memoria.tex`.

@@ -31,7 +31,7 @@ python scripts/download_drive.py
 python scripts/prepare_data.py
 ```
 
-El preprocesado convierte las imágenes a escala de grises, normaliza, genera parches de 256×256 y escribe las particiones en `data/splits/`. La evaluación del split `test/` debe leer las dos máscaras expertas y calcular la media de sus métricas.
+El preprocesado convierte las imágenes a escala de grises, normaliza, genera parches de 128×128 y escribe las particiones en `data/splits/`. La evaluación del split `test/` debe leer las dos máscaras expertas y calcular la media de sus métricas.
 
 ## Contrato del pipeline
 
