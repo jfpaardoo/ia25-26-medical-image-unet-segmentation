@@ -15,8 +15,8 @@ data:
     enabled: true
     transforms: [hflip, vflip, rot90]
   split:
-    train: 0.8
-    val: 0.2
+    train: 1.0
+    val: 0.0
     test: 0.0
 
 training:

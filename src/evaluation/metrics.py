@@ -30,6 +30,26 @@ def iou_score(y_true, y_pred, epsilon: float = 1e-7):
 
 
 @keras.saving.register_keras_serializable(package="segmentation")
+def sensitivity(y_true, y_pred, epsilon: float = 1e-7):
+    """Sensitivity (Recall): TP / (TP + FN)."""
+    y_true = ops.cast(y_true, "float32")
+    y_pred = ops.cast(y_pred, "float32")
+    true_positives = ops.sum(y_true * y_pred)
+    possible_positives = ops.sum(y_true)
+    return (true_positives + epsilon) / (possible_positives + epsilon)
+
+
+@keras.saving.register_keras_serializable(package="segmentation")
+def specificity(y_true, y_pred, epsilon: float = 1e-7):
+    """Specificity: TN / (TN + FP)."""
+    y_true = ops.cast(y_true, "float32")
+    y_pred = ops.cast(y_pred, "float32")
+    true_negatives = ops.sum((1.0 - y_true) * (1.0 - y_pred))
+    possible_negatives = ops.sum(1.0 - y_true)
+    return (true_negatives + epsilon) / (possible_negatives + epsilon)
+
+
+@keras.saving.register_keras_serializable(package="segmentation")
 class DiceCoefficient(keras.metrics.Metric):
     """Dice coefficient as a streaming Keras metric."""
 

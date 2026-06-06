@@ -152,7 +152,7 @@ def _split_official_drive_ids(source_ids: list[str], ratios: dict, rng: np.rando
 def _validate_split_file(path: Path, name: str, project_root: Path, ph: int, pw: int) -> None:
     lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     if not lines:
-        if name != "test":
+        if name not in {"test", "val"}:
             raise RuntimeError(f"Split file is empty: {path}")
         return
 
@@ -193,6 +193,43 @@ def _validate_prepared_dataset(project_root: Path, processed_dir: Path, splits_d
         _validate_split_file(path, name, project_root, ph, pw)
 
 
+def _save_patch_if_valid(
+    image_patch: np.ndarray,
+    mask_patch: np.ndarray,
+    patch_id: str,
+    source_id: str,
+    aug_name: str,
+    official_split: str | None,
+    mask_dir_name: str,
+    processed_dir: Path,
+    project_root: Path,
+    min_foreground: float,
+) -> dict | None:
+    mask_arr = mask_patch
+    if mask_arr.ndim == 3 and mask_arr.shape[-1] == 1:
+        mask_arr = mask_arr[..., 0]
+    fg_ratio = float((mask_arr > 0).sum()) / float(mask_arr.shape[0] * mask_arr.shape[1])
+    if fg_ratio < min_foreground:
+        return None
+
+    image_path = processed_dir / "images" / f"{patch_id}.npy"
+    mask_path = processed_dir / mask_dir_name / f"{patch_id}.npy"
+
+    mask_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if not image_path.exists():
+        np.save(image_path, image_patch.astype(np.float32))
+    np.save(mask_path, mask_patch.astype(np.uint8))
+
+    return {
+        "source_id": source_id,
+        "augmentation": aug_name,
+        "official_split": official_split,
+        "mask_dir_name": mask_dir_name,
+        "image_path": _relative(image_path, project_root),
+        "mask_path": _relative(mask_path, project_root),
+    }
+
 def _process_single_sample(
     sample: SegmentationSample,
     raw_dir: Path,
@@ -211,6 +248,8 @@ def _process_single_sample(
     except ValueError as exc:
         print(f"[WARN] Skipping sample: {exc}")
         return []
+
+    mask_dir_name = sample.mask_path.parent.name
 
     image_resized, mask_resized = resize_pair(
         image_raw,
@@ -241,28 +280,21 @@ def _process_single_sample(
 
         for idx in range(image_patches.shape[0]):
             patch_id = f"{source_id}__{aug_name}__p{idx:04d}"
-            mask_arr = mask_patches[idx]
-            if mask_arr.ndim == 3 and mask_arr.shape[-1] == 1:
-                mask_arr = mask_arr[..., 0]
-            fg_ratio = float((mask_arr > 0).sum()) / float(mask_arr.shape[0] * mask_arr.shape[1])
-            if fg_ratio < min_foreground:
-                continue
-
-            image_path = processed_dir / "images" / f"{patch_id}.npy"
-            mask_path = processed_dir / "masks" / f"{patch_id}.npy"
-
-            np.save(image_path, image_patches[idx].astype(np.float32))
-            np.save(mask_path, mask_patches[idx].astype(np.uint8))
-
-            records.append(
-                {
-                    "source_id": source_id,
-                    "augmentation": aug_name,
-                    "official_split": official_split,
-                    "image_path": _relative(image_path, project_root),
-                    "mask_path": _relative(mask_path, project_root),
-                }
+            record = _save_patch_if_valid(
+                image_patch=image_patches[idx],
+                mask_patch=mask_patches[idx],
+                patch_id=patch_id,
+                source_id=source_id,
+                aug_name=aug_name,
+                official_split=official_split,
+                mask_dir_name=mask_dir_name,
+                processed_dir=processed_dir,
+                project_root=project_root,
+                min_foreground=min_foreground,
             )
+            if record:
+                records.append(record)
+
     return records
 
 
