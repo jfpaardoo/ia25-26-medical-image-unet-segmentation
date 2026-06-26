@@ -66,7 +66,10 @@ def _resolve_loss(loss: Optional[Any], config: dict[str, Any], training_cfg: dic
 
 def _prepare_fit_kwargs(train_data, val_data, epochs: int, batch_size: Optional[int], val_split: float, callbacks: list) -> dict[str, Any]:
     kwargs: dict[str, Any] = {"epochs": epochs, "callbacks": callbacks}
-    if batch_size:
+    
+    is_sequence = isinstance(train_data, keras.utils.Sequence)
+    
+    if batch_size and not is_sequence:
         kwargs["batch_size"] = int(batch_size)
     
     if val_data is not None:

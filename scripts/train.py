@@ -1,4 +1,4 @@
-"""Train the U-Net segmentation model."""
+"""Train the U-Net segmentation model using DataGenerator and Cross Validation."""
 
 from __future__ import annotations
 
@@ -9,32 +9,20 @@ from pathlib import Path
 
 import numpy as np
 from keras.utils import set_random_seed
-from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import KFold
 
-from src.config import CONFIGS_DIR, FINAL_MODELS_DIR, load_yaml_config
+from src.config import CONFIGS_DIR, FINAL_MODELS_DIR, PROJECT_ROOT, load_yaml_config
 from src.training.train import train_model
-
-
-def _load_npz(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    data = np.load(path)
-    if "images" not in data or "masks" not in data:
-        raise ValueError("NPZ file must contain 'images' and 'masks' arrays.")
-    images = data["images"]
-    masks = data["masks"]
-    groups = data["groups"] if "groups" in data else np.arange(len(images))
-    if images.ndim == 3:
-        images = images[..., None]
-    if masks.ndim == 3:
-        masks = masks[..., None]
-    return images, masks, groups
+from src.data.dataset import discover_drive_samples
+from src.data.generator import DataGenerator
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the U-Net segmentation model.")
     parser.add_argument("--config", type=Path, default=CONFIGS_DIR / "default.yaml")
-    parser.add_argument("--train-npz", type=Path, required=True)
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--batch-size", type=int)
+    parser.add_argument("--data-dir", type=Path, default=PROJECT_ROOT / "data" / "raw")
     args = parser.parse_args()
 
     config = load_yaml_config(args.config)
@@ -43,24 +31,57 @@ def main() -> None:
     if args.batch_size is not None:
         config.setdefault("training", {})["batch_size"] = args.batch_size
 
-    train_images, train_masks, train_groups = _load_npz(args.train_npz)
+    # Descubrir las imágenes de entrenamiento (20 imágenes en DRIVE 2004)
+    train_samples = discover_drive_samples(args.data_dir, split="training")
+    if not train_samples:
+        print("No se encontraron imágenes en el directorio de entrenamiento. ¿Descargaste el dataset?")
+        return
 
     seed = config.get("project", {}).get("seed", 42)
     set_random_seed(seed)
-    kf = GroupKFold(n_splits=5)
+    
+    # K-Fold Cross Validation con k=5 (recomendado por el profesor)
+    # Como tenemos 20 imágenes, 4 serán para validación y 16 para entrenamiento en cada fold
+    kf = KFold(n_splits=5, shuffle=True, random_state=seed)
 
     final_models_dir = config.get("outputs", {}).get("final_model_dir", FINAL_MODELS_DIR)
     if not isinstance(final_models_dir, Path):
         final_models_dir = Path(final_models_dir)
     final_models_dir.mkdir(parents=True, exist_ok=True)
 
-    fold = 1
-    for train_idx, val_idx in kf.split(train_images, train_masks, groups=train_groups):
-        print(f"--- Training Fold {fold} ---")
-        x_train, y_train = train_images[train_idx], train_masks[train_idx]
-        x_val, y_val = train_images[val_idx], train_masks[val_idx]
+    batch_size = config.get("training", {}).get("batch_size", 16)
+    patch_size = tuple(config.get("data", {}).get("patch_size", [128, 128]))
 
-        model, _ = train_model(train_data=(x_train, y_train), val_data=(x_val, y_val), config=config)
+    fold = 1
+    # Convertimos a np.array de objetos para usar los índices del KFold fácilmente
+    samples_array = np.array(train_samples)
+    
+    for train_idx, val_idx in kf.split(samples_array):
+        print(f"--- Training Fold {fold} ---")
+        
+        train_samples_fold = samples_array[train_idx].tolist()
+        val_samples_fold = samples_array[val_idx].tolist()
+        
+        # Instanciar generadores para este fold
+        train_gen = DataGenerator(
+            samples=train_samples_fold,
+            batch_size=batch_size,
+            patch_size=patch_size,
+            augment=True,
+            shuffle=True,
+            seed=seed + fold
+        )
+        
+        val_gen = DataGenerator(
+            samples=val_samples_fold,
+            batch_size=batch_size,
+            patch_size=patch_size,
+            augment=False,
+            shuffle=False,
+            seed=seed
+        )
+
+        model, _ = train_model(train_data=train_gen, val_data=val_gen, config=config)
 
         model_path = final_models_dir / f"unet_fold_{fold}.keras"
         model.save(model_path)
