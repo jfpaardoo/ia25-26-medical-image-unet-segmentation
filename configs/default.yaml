@@ -4,27 +4,19 @@ project:
 
 data:
   raw_dir: data/raw
-  processed_dir: data/processed
-  splits_dir: data/splits
   image_size: [584, 565]
   patch_size: [128, 128]
   patch_stride: [128, 128]
   mask_format: binary
-  use_official_drive_split: true
   augmentation:
     enabled: true
     transforms: [hflip, vflip, rot90]
-  split:
-    train: 1.0
-    val: 0.0
-    test: 0.0
 
 training:
   batch_size: 16
   epochs: 75
   learning_rate: 0.001
   loss: bce_dice
-  validation_split: 0.2
   num_workers: 0
 
 model:

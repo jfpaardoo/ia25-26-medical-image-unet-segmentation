@@ -1,117 +1,73 @@
-"""Dataset discovery helpers for paired image-mask data."""
+"""Funciones para cargar las rutas de las imágenes de la base de datos DRIVE 2004."""
 
 from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 
-
 @dataclass(frozen=True)
 class SegmentationSample:
-    """Pair of image and mask paths."""
-
+    """Par que contiene la ruta a la imagen y su máscara (ground truth)."""
     image_path: Path
     mask_path: Path
 
-
-def _is_image(p: Path) -> bool:
-    return p.suffix.lower() in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}
-
-
-def _matching_files(directory: Path, stem: str) -> list[Path]:
-    if not directory.exists():
-        return []
-    return sorted(
-        [p for p in directory.rglob("*") if p.is_file() and p.stem == stem],
-        key=lambda path: path.as_posix(),
-    )
-
-
-def _image_mask_pairs(root: Path) -> list[tuple[Path, Path]]:
-    mask_dirnames = ("masks", "masks_expert1", "masks_expert2")
-    pairs = set()
+def discover_drive_samples(root_dir: Path | str, split: str = "training") -> list[SegmentationSample]:
+    """Descubre los archivos de imagen y máscara del dataset DRIVE 2004.
     
-    for img_dir in [root / "images", *root.rglob("images")]:
-        if not img_dir.is_dir():
-            continue
-            
-        for mask_name in mask_dirnames:
-            mask_dir = img_dir.parent / mask_name
-            if mask_dir.is_dir():
-                pairs.add((img_dir, mask_dir))
-                
-    return sorted(pairs, key=lambda p: (p[0].as_posix(), p[1].as_posix()))
-
-
-def _resolve_mask_for_image(img: Path, root: Path) -> Path | None:
-    candidate = img.with_name(img.stem + "_mask" + img.suffix)
-    if candidate.exists():
-        return candidate
-
-    same_dir_matches = _matching_files(img.parent, img.stem)
-    for match in same_dir_matches:
-        if match != img:
-            return match
-
-    try:
-        rel = img.relative_to(root)
-    except ValueError:
-        return None
-
-    mirrored_candidate = root / "masks" / rel
-    if mirrored_candidate.exists():
-        return mirrored_candidate
-
-    mirrored_dir_matches = _matching_files(root / "masks" / rel.parent, img.stem)
-    for match in mirrored_dir_matches:
-        return match
-
-    return None
-
-
-def _find_explicit_mask(img: Path, images_dir: Path, masks_dir: Path, root: Path) -> Path | None:
-    candidate = masks_dir / img.relative_to(images_dir)
-    if candidate.exists():
-        return candidate
-
-    sibling_matches = sorted(
-        (p for p in masks_dir.rglob("*") if p.is_file() and p.stem == img.stem),
-        key=lambda path: path.as_posix()
-    )
-    if sibling_matches:
-        return sibling_matches[0]
-
-    return _resolve_mask_for_image(img, root)
-
-
-def _discover_explicit_layout(root: Path) -> list[SegmentationSample]:
-    samples = []
-    for images_dir, masks_dir in _image_mask_pairs(root):
-        for img in (p for p in images_dir.rglob("*") if p.is_file() and _is_image(p)):
-            mask_candidate = _find_explicit_mask(img, images_dir, masks_dir, root)
-            if mask_candidate is not None:
-                samples.append(SegmentationSample(image_path=img, mask_path=mask_candidate))
-    return samples
-
-
-def _discover_fallback_layout(root: Path) -> list[SegmentationSample]:
-    samples = []
-    for img in (p for p in root.rglob("*") if p.is_file() and _is_image(p)):
-        mask_candidate = _resolve_mask_for_image(img, root)
-        if mask_candidate is not None:
-            samples.append(SegmentationSample(image_path=img, mask_path=mask_candidate))
-    return samples
-
-
-def discover_samples(root_dir: Path) -> list[SegmentationSample]:
-    """Return the dataset samples found under root_dir.
-
-    The concrete discovery rules depend on the chosen dataset layout.
+    El dataset DRIVE 2004 está estructurado de la siguiente forma:
+    - training/
+        - images/ (imágenes originales .tif)
+        - 1st_manual/ (máscaras de segmentación .gif)
+    - test/
+        - images/ (imágenes originales .tif)
+        - 1st_manual/ (máscaras de segmentación del primer experto .gif)
+        - 2nd_manual/ (máscaras del segundo experto - opcional)
+    
+    Args:
+        root_dir: Directorio base de los datos (ej: data/raw)
+        split: 'training' o 'test'
+        
+    Returns:
+        Una lista de objetos SegmentationSample con las rutas encontradas.
     """
     root = Path(root_dir)
-    samples = _discover_explicit_layout(root)
-    if samples:
-        return sorted(samples, key=lambda s: s.image_path.as_posix())
+    images_dir = root / split / "images"
+    
+    # La base de datos original tiene las máscaras en '1st_manual' como '.gif'
+    # Pero el dataset de Kaggle descargado las tiene en 'masks' como '.png'
+    masks_dir_original = root / split / "1st_manual"
+    masks_dir_kaggle = root / split / "masks"
+    
+    if masks_dir_kaggle.exists():
+        masks_dir = masks_dir_kaggle
+        mask_ext = ".png"
+        mask_suffix = ""
+    else:
+        masks_dir = masks_dir_original
+        mask_ext = ".gif"
+        mask_suffix = "_manual1"
+    
+    if not images_dir.exists() or not masks_dir.exists():
+        raise FileNotFoundError(
+            f"No se encuentra el dataset en {root}. "
+            "Asegúrate de haber descargado la base de datos DRIVE 2004 y que sus carpetas "
+            "tengan la estructura correcta (e.g. data/raw/training/images y data/raw/training/masks)."
+        )
         
-    samples = _discover_fallback_layout(root)
-    return sorted(samples, key=lambda s: s.image_path.as_posix())
+    samples = []
+    # Las imágenes en DRIVE son .tif
+    for img_path in sorted(images_dir.glob("*.tif")):
+        # Dependiendo del formato, el nombre de la máscara varía
+        if mask_suffix:
+            img_id = img_path.stem.split('_')[0]
+            mask_name = f"{img_id}{mask_suffix}{mask_ext}"
+        else:
+            mask_name = f"{img_path.stem}{mask_ext}"
+            
+        mask_path = masks_dir / mask_name
+        
+        if mask_path.exists():
+            samples.append(SegmentationSample(image_path=img_path, mask_path=mask_path))
+        else:
+            print(f"[WARN] No se encontró máscara para la imagen {img_path.name}: se esperaba {mask_name}")
+            
+    return samples

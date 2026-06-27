@@ -39,11 +39,16 @@ def build_unet(
         filters //= 2
         x = decoder_block(x, skip, filters, dropout_rate=dropout_rate, use_batch_norm=use_batch_norm)
 
+    # La capa final de la U-Net usa típicamente una función de activación Sigmoide
+    # cuando se trata de una clasificación binaria (como segmentar vaso vs fondo).
+    # La sigmoide aplasta los valores de salida entre 0 y 1, permitiendo interpretar
+    # el resultado como una probabilidad para cada píxel de pertenecer a la clase positiva.
     outputs = layers.Conv2D(
         num_classes,
         kernel_size=1,
         activation=final_activation,
         padding="same",
+        name="salida_sigmoide"
     )(x)
 
     return keras.Model(inputs=inputs, outputs=outputs)

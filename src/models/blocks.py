@@ -11,6 +11,9 @@ def conv_block(x: keras.KerasTensor, filters: int, kernel_size: int = 3, activat
         x = layers.Conv2D(filters, kernel_size, padding=padding, kernel_initializer="he_normal")(x)
         if use_batch_norm:
             x = layers.BatchNormalization()(x)
+        # Se utiliza ReLU (Rectified Linear Unit) como función de activación en las capas
+        # ocultas porque introduce no linealidad en la red y ayuda a mitigar el problema 
+        # del desvanecimiento del gradiente (vanishing gradient) que sufrirían redes profundas con Sigmoide.
         x = layers.Activation(activation)(x)
     if dropout_rate > 0.0:
         x = layers.Dropout(dropout_rate)(x)
