@@ -8,7 +8,7 @@ from typing import Optional
 import numpy as np
 import keras
 
-from .metrics import DiceCoefficient, dice_coefficient, dice_loss, iou_score
+from .metrics import DiceCoefficient, Specificity, dice_coefficient, dice_loss
 
 
 def _get_expected_channels(model: keras.Model) -> Optional[int]:
@@ -66,8 +66,8 @@ def load_model(model_path: Path | str, compile: bool = False) -> keras.Model:
     custom_objects = {
         "dice_coefficient": dice_coefficient,
         "dice_loss": dice_loss,
-        "iou_score": iou_score,
         "DiceCoefficient": DiceCoefficient,
+        "Specificity": Specificity,
     }
     return keras.saving.load_model(str(model_path), compile=compile, custom_objects=custom_objects)
 

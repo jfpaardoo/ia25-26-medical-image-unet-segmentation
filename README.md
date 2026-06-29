@@ -103,7 +103,7 @@ Responsable de la parte de datos y del preprocesado.
 
 - Definir el formato de entrada del dataset y documentar cómo debe colocarse en `data/raw/`.
 - Implementar la detección de pares imagen-máscara en `src/data/dataset.py`.
-- Implementar limpieza, normalización, padding, redimensionado y parcheado en `src/data/preprocessing.py` y `src/data/patching.py`.
+- Implementar formateo de máscaras en `src/data/preprocessing.py` y parcheado/reconstrucción en `src/data/patching.py`.
 - Diseñar la estrategia de aumento de datos y la generación de particiones en `data/splits/`.
 - Preparar un notebook de exploración inicial si hace falta validar el dataset.
 - Entregar al final un flujo reproducible que produzca entradas listas para entrenamiento.
@@ -250,3 +250,9 @@ Recientemente se completó una refactorización estructural significativa:
 - **Refactorización de `evaluate.py`:** Extracción de lógica repetitiva en funciones auxiliares (`_get_expert_score`, `_print_expert_results`) y búsqueda flexible de máscaras mediante patrones de nombre.
 
 El entrenamiento de la U-Net se ha realizado con validación cruzada de 5 pliegues, obteniendo un DICE promedio de 0.8115 sobre el conjunto de test evaluado contra ambos expertos médicos, superando las métricas exigidas. El informe en LaTeX con los resultados está disponible en `docs/proyecto/memoria.tex`.
+
+Recientemente se completó una refactorización orientada a eliminar lógica manual en favor de APIs nativas de Keras:
+
+- **Métricas nativas:** `iou_score` (manual) reemplazado por `keras.metrics.BinaryIoU`; `sensitivity` (manual) por `keras.metrics.Recall`; `specificity` (manual) por una clase `Specificity` construida sobre `keras.metrics.TrueNegatives` + `FalsePositives`. El Dice se mantiene (no tiene equivalente nativo en Keras 3).
+- **Carga de imágenes:** `to_grayscale()` y `normalize_image()` (manuales) sustituidas por `load_img(color_mode='grayscale')` + `img_to_array() / 255.0` (nativos Keras).
+- **Aumento de datos:** `np.fliplr`/`np.flipud` manuales reemplazados por `keras.layers.RandomFlip` con concatenación imagen-máscara para aumentos sincronizados.
