@@ -27,7 +27,7 @@ El enunciado del proyecto exige además varios puntos concretos que conviene ten
 - Entregar segmentaciones generadas por el modelo en formato `.png`.
 - Devolver salidas con el mismo tamaño que la imagen original tras el postprocesado.
 - Aplicar padding o recorte cuando la forma de entrada no coincida con la que admite la U-Net.
-- Manejar el preprocesado de forma reproducible; el enunciado sugiere DataGenerator, aunque este repositorio actualmente usa un preprocesado previo a partir de `.npz`.
+- Manejar el preprocesado de forma reproducible; el repositorio implementa un `DataGenerator` que parchea y normaliza las imágenes sobre la marcha, alineado con la sugerencia del enunciado.
 
 ## Referencias analizadas
 
@@ -87,12 +87,11 @@ El enunciado del proyecto exige además varios puntos concretos que conviene ten
 
 ## Flujo de trabajo previsto
 
-1. Colocar el dataset original en `data/raw/`.
-2. Ejecutar el preprocesado y generar particiones en `data/splits/`.
-3. Entrenar la U-Net desde `scripts/train.py` o desde un notebook, usando 5 pliegues como mínimo.
-4. Guardar pesos, checkpoints y modelo final en `models/`.
-5. Evaluar el modelo con DICE como métrica principal y revisar si supera el objetivo medio de 0.75.
-6. Exportar las máscaras finales en `.png` y guardar figuras y predicciones en `artifacts/`.
+1. Descargar y organizar el dataset DRIVE 2004 mediante `python scripts/download_drive.py` — binariza máscaras `.gif` a `.png` y las deposita directamente en `data/raw/`.
+2. Entrenar la U-Net desde `scripts/train.py`, que ahora usa un `DataGenerator` (Keras `Sequence`) para cargar, parchear y aumentar los datos sobre la marcha sin empaquetado previo en `.npz`.
+3. Guardar pesos, checkpoints y modelo final en `models/`.
+4. Evaluar el modelo con DICE como métrica principal — el evaluador busca automáticamente las máscaras de ambos expertos con patrones de nombre flexibles.
+5. Exportar las máscaras finales en `.png` y guardar figuras y predicciones en `artifacts/`.
 
 ## Trabajo en paralelo
 
@@ -154,7 +153,7 @@ conda activate ia25-medseg
 
 Estos son los comandos que cubren el flujo completo del proyecto según el enunciado del PDF y la implementación actual.
 
-Importante: ejecútalos desde la raíz del repositorio y usa siempre la ruta `scripts/...`. Los ficheros `train.py`, `prepare_data.py`, `evaluate.py`, `predict.py`, `download_drive.py` y `demo_pipeline.py` no están en la raíz.
+Importante: ejecútalos desde la raíz del repositorio y usa siempre la ruta `scripts/...`. Los ficheros `train.py`, `evaluate.py`, `predict.py` y `download_drive.py` no están en la raíz.
 
 ```powershell
 # 1. Preparar el entorno
@@ -163,26 +162,23 @@ conda activate ia25-medseg
 python -m pip install -r requirements.txt
 python -m pip install -e .
 
-# 2. Descargar el dataset DRIVE 2004
+# 2. Descargar y organizar el dataset DRIVE 2004
 python scripts/download_drive.py
 
-# 4. Preprocesar, parchear y generar particiones
-python scripts/prepare_data.py
+# 3. Entrenar la U-Net (DataGenerator + 5-fold CV)
+python scripts/train.py
 
-# 6. Entrenar la U-Net con el NPZ preparado
-python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/default.yaml
+# 4. Evaluar predicciones contra ambos expertos médicos
+python scripts/evaluate.py
 
-# 7. Evaluar el modelo final sobre un NPZ con imágenes y máscaras
-python scripts/evaluate.py --model models/final/unet_fold_1.keras --data-npz artifacts/npz/val.npz
-
-# 8. Generar máscaras de inferencia reconstruidas al tamaño original
+# 5. Generar máscaras de inferencia reconstruidas al tamaño original
 python scripts/predict.py --model models/final/unet_fold_1.keras --images-dir data/raw/test/images --output artifacts/predictions
 ```
 
 Para una comprobación rápida del entrenamiento, puedes acotar el número de épocas:
 
 ```powershell
-python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/default.yaml --epochs 1 --batch-size 2
+python scripts/train.py --epochs 1 --batch-size 2
 ```
 
 ## Preparación del dataset
@@ -215,36 +211,42 @@ Para cumplir con el enunciado, la salida de inferencia debe conservar el tamaño
 > Los archivos de datos están excluidos del repositorio (`.gitignore`). Cualquier persona que clone el repo debe ejecutar estos comandos para regenerarlos localmente.
 
 ```bash
-# 1. Descargar el dataset DRIVE 2004 desde Kaggle (requiere kagglehub)
+# Descargar el dataset DRIVE 2004 desde Kaggle (requiere kagglehub)
 python -m pip install kagglehub
 python scripts/download_drive.py
-
-# 2. Preprocesar: normalización, parcheado 128×128 y particiones reproducibles
-python scripts/prepare_data.py
 ```
 
-Tras la ejecución, el pipeline genera parches de 128×128 píxeles (imágenes float32 en escala de grises, máscaras uint8 binarias) a partir del split etiquetado de `training/`. El test oficial de DRIVE mantiene sus dos máscaras expertas para evaluación, aunque no se usa como fuente de entrenamiento.
+El script `download_drive.py` ha sido reestructurado por completo para que ahora esté enfocado exclusivamente en la estructura del dataset DRIVE 2004 de Kaggle (`andrewmvd/drive-digital-retinal-images-for-vessel-extraction`). Ahora itera directamente sobre los archivos `.tif` de `images/`, binariza a 0/255 las máscaras `.gif` originales (`1st_manual`, `2nd_manual`, `mask`) y las guarda como `.png` en los directorios correspondientes (`masks/`, `masks_expert1/`, `masks_expert2/`, `fov_masks/`).
 
-El aumento de datos (flip horizontal, flip vertical, rotación 90°) se aplica solo sobre las imágenes de entrenamiento, evitando fuga de datos entre particiones.
+El dataset `discover_drive_samples()` en `src/data/dataset.py` retorna objetos `SegmentationSample` con las rutas emparejadas imagen-máscara, consumidos directamente por el `DataGenerator`.
 
 ## Ejecución del modelo
 
-El entrenamiento que dejó Diego está en [scripts/train.py](scripts/train.py) y consume un `.npz` con las claves `images` y `masks`.
+El entrenamiento en [scripts/train.py](scripts/train.py) consume directamente las imágenes organizadas en `data/raw/` a través del `DataGenerator` (`src/data/generator.py`), que extiende `keras.utils.Sequence` para cargar, parchear (128×128) y aumentar datos sobre la marcha sin necesidad de archivos `.npz` intermedios.
 
 ```powershell
 & 'C:\ProgramData\anaconda3\shell\condabin\conda-hook.ps1'
 conda activate ia25-medseg
-python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/default.yaml
+python scripts/train.py --config configs/default.yaml
 ```
 
 Si quieres comprobar rápidamente que todo arranca, usa una pasada corta:
 
 ```powershell
-python scripts/train.py --train-npz artifacts/npz/train.npz --config configs/default.yaml --epochs 1 --batch-size 2
+python scripts/train.py --config configs/default.yaml --epochs 1 --batch-size 2
 ```
 
 El resultado del entrenamiento se guarda en `models/final/` y los logs/checkpoints en `models/checkpoints/` y `artifacts/logs/`.
 
 ## Estado actual
 
-El proyecto está completamente implementado para DRIVE 2004: descarga automática del dataset, preprocesado (normalización, conversión a escala de grises, parcheado 128×128), aumento de datos y generación de particiones reproducibles. El entrenamiento de la U-Net se ha realizado con validación cruzada de 5 pliegues, obteniendo un DICE promedio de 0.8115 sobre el conjunto de test evaluado contra ambos expertos médicos, superando las métricas exigidas. El informe en LaTeX con los resultados está disponible en `docs/proyecto/memoria.tex`.
+El proyecto está completamente implementado para DRIVE 2004: descarga automática del dataset, preprocesado (normalización, conversión a escala de grises, parcheado 128×128), aumento de datos y generación de particiones reproducibles.
+
+Recientemente se completó una refactorización estructural significativa:
+
+- **Scripts eliminados:** `scripts/prepare_data.py` y `scripts/pack_npz.py` fueron suprimidos al optar por un pipeline de carga bajo demanda.
+- **Nuevo DataGenerator:** `src/data/generator.py` implementa un generador Keras `Sequence` que parchea y aumenta imágenes sobre la marcha, eliminando la necesidad de pre-empaquetado `.npz`.
+- **Simplificación de `download_drive.py`:** Reducido de 234 a 78 líneas, enfocado exclusivamente en la estructura DRIVE 2004. Binariza directamente las máscaras `.gif` originales a `.png` 0/255.
+- **Refactorización de `evaluate.py`:** Extracción de lógica repetitiva en funciones auxiliares (`_get_expert_score`, `_print_expert_results`) y búsqueda flexible de máscaras mediante patrones de nombre.
+
+El entrenamiento de la U-Net se ha realizado con validación cruzada de 5 pliegues, obteniendo un DICE promedio de 0.8115 sobre el conjunto de test evaluado contra ambos expertos médicos, superando las métricas exigidas. El informe en LaTeX con los resultados está disponible en `docs/proyecto/memoria.tex`.

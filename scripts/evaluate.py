@@ -20,38 +20,43 @@ def dice_coefficient(y_true: np.ndarray, y_pred: np.ndarray) -> float:
         
     return (2.0 * intersection) / sum_true_pred
 
+def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str, expert_num: int) -> float | None:
+    """Busca la máscara de un experto, la carga y calcula el DICE score."""
+    # Posibles nombres para los archivos de máscaras
+    mask_patterns = [f"{img_id}_test.png",f"{img_id}_manual{expert_num}.png",f"{img_id}_manual{expert_num}.gif",]
+
+    mask_path = None
+    for pattern in mask_patterns:
+        p = expert_dir / pattern
+        if p.exists():
+            mask_path = p
+            break
+
+    if mask_path:
+        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+        return dice_coefficient(mask, pred_img)
+
+    return None
+
 def _evaluate_single_prediction(pred_path: Path, expert1_dir: Path, expert2_dir: Path) -> tuple[float | None, float | None]:
     """Evalúa una sola imagen de predicción contra ambos expertos."""
-    # Nombre de la imagen base (ej. 01_test)
     base_name = pred_path.stem.replace("_pred", "")
     img_id = base_name.split("_")[0]
-    
-    # Buscar la máscara del experto 1
-    mask1_path = expert1_dir / f"{img_id}_test.png"
-    if not mask1_path.exists():
-        mask1_path = expert1_dir / f"{img_id}_manual1.png"
-        if not mask1_path.exists(): 
-            mask1_path = expert1_dir / f"{img_id}_manual1.gif"
-        
-    # Buscar la máscara del experto 2
-    mask2_path = expert2_dir / f"{img_id}_test.png"
-    if not mask2_path.exists():
-        mask2_path = expert2_dir / f"{img_id}_manual2.png"
-        if not mask2_path.exists():
-            mask2_path = expert2_dir / f"{img_id}_manual2.gif"
 
     pred_img = cv2.imread(str(pred_path), cv2.IMREAD_GRAYSCALE)
-    score1, score2 = None, None
-    
-    if mask1_path.exists():
-        mask1 = cv2.imread(str(mask1_path), cv2.IMREAD_GRAYSCALE)
-        score1 = dice_coefficient(mask1, pred_img)
-        
-    if mask2_path.exists():
-        mask2 = cv2.imread(str(mask2_path), cv2.IMREAD_GRAYSCALE)
-        score2 = dice_coefficient(mask2, pred_img)
-        
+
+    score1 = _get_expert_score(pred_img, expert1_dir, img_id, 1)
+    score2 = _get_expert_score(pred_img, expert2_dir, img_id, 2)
+
     return score1, score2
+
+def _print_expert_results(scores: list[float], expert_num: int):
+    """Imprime la media de DICE score para un experto."""
+    if scores:
+        avg = np.mean(scores)
+        print(f"Experto {expert_num} (Media): {avg:.4f}  (Evaluado en {len(scores)} imágenes)")
+    else:
+        print(f"Experto {expert_num}: No se encontraron máscaras de referencia.")
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluar predicciones contra expertos.")
@@ -86,22 +91,12 @@ def main():
         if score2 is not None:
             scores_expert2.append(score2)
 
-    # Resultados Finales
     print("=" * 40)
     print("RESULTADOS DE LA EVALUACIÓN (DICE SCORE)")
     print("=" * 40)
     
-    if scores_expert1:
-        avg1 = np.mean(scores_expert1)
-        print(f"Experto 1 (Media): {avg1:.4f}  (Evaluado en {len(scores_expert1)} imágenes)")
-    else:
-        print("Experto 1: No se encontraron máscaras de referencia.")
-        
-    if scores_expert2:
-        avg2 = np.mean(scores_expert2)
-        print(f"Experto 2 (Media): {avg2:.4f}  (Evaluado en {len(scores_expert2)} imágenes)")
-    else:
-        print("Experto 2: No se encontraron máscaras de referencia.")
+    _print_expert_results(scores_expert1, expert_num=1)
+    _print_expert_results(scores_expert2, expert_num=2)
         
     if scores_expert1 and scores_expert2:
         media_total = np.mean(scores_expert1 + scores_expert2)
