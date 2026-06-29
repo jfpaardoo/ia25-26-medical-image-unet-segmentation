@@ -8,7 +8,7 @@ from PIL import Image
 
 from src.config import CONFIGS_DIR, PROJECT_ROOT, load_yaml_config
 from src.evaluation.inference import load_model, predict_mask
-from src.data.preprocessing import normalize_image, resize_pair
+from src.data.preprocessing import normalize_image, to_grayscale
 from src.data.patching import extract_patches, reconstruct_from_patches
 
 def main():
@@ -43,21 +43,11 @@ def main():
             print(f"[WARN] No se pudo leer la imagen: {img_path}")
             continue
             
-        # Necesitamos la imagen en formato 1 canal normalizada a [0, 1]
-        dummy_mask = np.zeros(img_raw.shape[:2], dtype=np.uint8)
-        
-        # Aprovechamos resize_pair solo para pasar a escala de grises (1 canal) 
-        # usando target_size con el tamaño original de la imagen
-        img_gray, _ = resize_pair(
-            img_raw, 
-            dummy_mask, 
-            target_size=(img_raw.shape[0], img_raw.shape[1]), 
-            target_channels=1
-        )
-        
+        # Convertimos a escala de grises y normalizamos a [0, 1]
+        img_gray = to_grayscale(img_raw)
         img_processed = normalize_image(img_gray)
         img_processed = img_processed[..., None]
-        dummy_mask = dummy_mask[..., None]
+        dummy_mask = np.zeros(img_raw.shape[:2], dtype=np.uint8)[..., None]
         
         # Extraemos parches con solapamiento de la mitad para evitar bordes duros
         stride = [max(1, patch_size[0] // 2), max(1, patch_size[1] // 2)]

@@ -6,9 +6,9 @@ import cv2
 import numpy as np
 import keras
 from pathlib import Path
-from typing import Sequence
 
 from src.data.dataset import SegmentationSample
+from src.data.preprocessing import to_grayscale, normalize_image, apply_mask_format
 
 class DataGenerator(keras.utils.Sequence):
     """Generador de datos para Keras que lee de disco, parchea y aumenta imágenes sobre la marcha.
@@ -33,9 +33,6 @@ class DataGenerator(keras.utils.Sequence):
         self.shuffle = shuffle
         self.rng = np.random.default_rng(seed)
         
-        # En DRIVE, las imágenes originales suelen ser 584x565.
-        # Durante el init, extraemos todas las combinaciones posibles de (muestra_idx, y_start, x_start)
-        # de forma simplificada, o simplemente pre-cargamos las imágenes si caben en memoria.
         # Como DRIVE tiene sólo 20 imágenes de train, caben perfectamente en memoria.
         self.images_cache = []
         self.masks_cache = []
@@ -46,18 +43,10 @@ class DataGenerator(keras.utils.Sequence):
             
             if img is None or mask is None:
                 continue
-                
-            # Normalizar imagen (1 canal en DRIVE a veces, lo pasamos a escala de grises si es RGB)
-            if img.ndim == 3 and img.shape[2] == 3:
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            img = img.astype(np.float32) / 255.0
-            img = img[..., np.newaxis]
             
-            # Normalizar máscara a binaria 0/1
-            if mask.ndim == 3 and mask.shape[2] == 3:
-                mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
-            mask = (mask > 127).astype(np.uint8)
-            mask = mask[..., np.newaxis]
+            # Reutilizamos las funciones de preprocessing.py para realizar la normalización
+            img = normalize_image(to_grayscale(img))[..., np.newaxis]
+            mask = apply_mask_format(mask, "binary")[..., np.newaxis]
             
             self.images_cache.append(img)
             self.masks_cache.append(mask)
