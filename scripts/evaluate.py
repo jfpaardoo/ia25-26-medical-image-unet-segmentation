@@ -2,8 +2,8 @@
 
 import argparse
 from pathlib import Path
-import cv2
 import numpy as np
+import keras
 
 from src.config import PROJECT_ROOT
 
@@ -33,7 +33,7 @@ def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str, exper
             break
 
     if mask_path:
-        mask = cv2.imread(str(mask_path), cv2.IMREAD_GRAYSCALE)
+        mask = keras.utils.img_to_array(keras.utils.load_img(mask_path, color_mode="grayscale"))
         return dice_coefficient(mask, pred_img)
 
     return None
@@ -43,7 +43,7 @@ def _evaluate_single_prediction(pred_path: Path, expert1_dir: Path, expert2_dir:
     base_name = pred_path.stem.replace("_pred", "")
     img_id = base_name.split("_")[0]
 
-    pred_img = cv2.imread(str(pred_path), cv2.IMREAD_GRAYSCALE)
+    pred_img = keras.utils.img_to_array(keras.utils.load_img(pred_path, color_mode="grayscale"))
 
     score1 = _get_expert_score(pred_img, expert1_dir, img_id, 1)
     score2 = _get_expert_score(pred_img, expert2_dir, img_id, 2)

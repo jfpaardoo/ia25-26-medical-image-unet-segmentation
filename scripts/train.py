@@ -11,7 +11,7 @@ import numpy as np
 from keras.utils import set_random_seed
 from sklearn.model_selection import KFold
 
-from src.config import CONFIGS_DIR, FINAL_MODELS_DIR, PROJECT_ROOT, load_yaml_config
+from src.config import CONFIGS_DIR, FINAL_MODELS_DIR, PROJECT_ROOT, load_json_config
 from src.training.train import train_model
 from src.data.dataset import discover_drive_samples
 from src.data.generator import DataGenerator
@@ -19,13 +19,13 @@ from src.data.generator import DataGenerator
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the U-Net segmentation model.")
-    parser.add_argument("--config", type=Path, default=CONFIGS_DIR / "default.yaml")
+    parser.add_argument("--config", type=Path, default=CONFIGS_DIR / "default.json")
     parser.add_argument("--epochs", type=int)
     parser.add_argument("--batch-size", type=int)
     parser.add_argument("--data-dir", type=Path, default=PROJECT_ROOT / "data" / "raw")
     args = parser.parse_args()
 
-    config = load_yaml_config(args.config)
+    config = load_json_config(args.config)
     if args.epochs is not None:
         config.setdefault("training", {})["epochs"] = args.epochs
     if args.batch_size is not None:

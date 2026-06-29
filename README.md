@@ -49,7 +49,7 @@ El enunciado del proyecto exige además varios puntos concretos que conviene ten
 ├── README.md
 ├── requirements.txt
 ├── configs/
-│   └── default.yaml
+│   └── default.json
 ├── data/
 │   ├── raw/
 │   ├── processed/
@@ -122,7 +122,7 @@ Responsable de la parte de modelo, entrenamiento, evaluación y resultados.
 ### Contrato mínimo entre ambos
 
 1. Misma estructura de carpetas dentro de `data/raw/`, `data/processed/` y `data/splits/`.
-2. Mismo tamaño de entrada de imagen y máscara definido en `configs/default.yaml`.
+2. Mismo tamaño de entrada de imagen y máscara definido en `configs/default.json`.
 3. Mismo criterio de codificación de máscaras binaria o multiclase.
 4. Misma definición de métrica principal, con DICE como referencia mínima.
 5. Misma convención para nombres de checkpoints, modelo final y figuras.
@@ -133,7 +133,7 @@ Responsable de la parte de modelo, entrenamiento, evaluación y resultados.
 - Segunda integración: Diego entrega una U-Net funcional con entrada/salida acordadas y Juan valida que sus datos encajan sin cambios manuales.
 - Tercera integración: ambos prueban evaluación, guardado del modelo y generación de máscaras sobre ejemplos reales.
 
-Para mantener la dependencia mínima, cualquier cambio de formato debe pasar primero por `configs/default.yaml` y quedar reflejado en este README o en `docs/README.md`.
+Para mantener la dependencia mínima, cualquier cambio de formato debe pasar primero por `configs/default.json` y quedar reflejado en este README o en `docs/README.md`.
 
 ## Instalación rápida
 
@@ -227,13 +227,13 @@ El entrenamiento en [scripts/train.py](scripts/train.py) consume directamente la
 ```powershell
 & 'C:\ProgramData\anaconda3\shell\condabin\conda-hook.ps1'
 conda activate ia25-medseg
-python scripts/train.py --config configs/default.yaml
+python scripts/train.py --config configs/default.json
 ```
 
 Si quieres comprobar rápidamente que todo arranca, usa una pasada corta:
 
 ```powershell
-python scripts/train.py --config configs/default.yaml --epochs 1 --batch-size 2
+python scripts/train.py --config configs/default.json --epochs 1 --batch-size 2
 ```
 
 El resultado del entrenamiento se guarda en `models/final/` y los logs/checkpoints en `models/checkpoints/` y `artifacts/logs/`.

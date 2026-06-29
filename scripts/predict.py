@@ -2,25 +2,25 @@
 
 import argparse
 from pathlib import Path
-import cv2
 import numpy as np
+import keras
 from PIL import Image
 
-from src.config import CONFIGS_DIR, PROJECT_ROOT, load_yaml_config
+from src.config import CONFIGS_DIR, PROJECT_ROOT, load_json_config
 from src.evaluation.inference import load_model, predict_mask
 from src.data.preprocessing import normalize_image, to_grayscale
 from src.data.patching import extract_patches, reconstruct_from_patches
 
 def main():
     parser = argparse.ArgumentParser(description="Predecir máscaras para imágenes completas.")
-    parser.add_argument("--config", type=Path, default=CONFIGS_DIR / "default.yaml")
+    parser.add_argument("--config", type=Path, default=CONFIGS_DIR / "default.json")
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--images-dir", type=Path, default=PROJECT_ROOT / "data/raw/test/images")
     parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "artifacts/predictions_full")
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
 
-    config = load_yaml_config(args.config)
+    config = load_json_config(args.config)
     patch_size = config.get("data", {}).get("patch_size", [128, 128])
     
     args.output.mkdir(parents=True, exist_ok=True)
@@ -37,9 +37,9 @@ def main():
     
     for img_path in image_paths:
         print(f" -> Reconstruyendo {img_path.name}...")
-        img_raw = cv2.imread(str(img_path), cv2.IMREAD_UNCHANGED)
-        
-        if img_raw is None:
+        try:
+            img_raw = keras.utils.img_to_array(keras.utils.load_img(img_path))
+        except Exception:
             print(f"[WARN] No se pudo leer la imagen: {img_path}")
             continue
             

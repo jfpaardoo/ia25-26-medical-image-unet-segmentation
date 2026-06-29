@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import cv2
 import numpy as np
 import keras
-from pathlib import Path
 
 from src.data.dataset import SegmentationSample
 from src.data.preprocessing import to_grayscale, normalize_image, apply_mask_format
@@ -38,10 +36,10 @@ class DataGenerator(keras.utils.Sequence):
         self.masks_cache = []
         
         for sample in self.samples:
-            img = cv2.imread(str(sample.image_path), cv2.IMREAD_UNCHANGED)
-            mask = cv2.imread(str(sample.mask_path), cv2.IMREAD_UNCHANGED)
-            
-            if img is None or mask is None:
+            try:
+                img = keras.utils.img_to_array(keras.utils.load_img(sample.image_path))
+                mask = keras.utils.img_to_array(keras.utils.load_img(sample.mask_path, color_mode="grayscale"))
+            except Exception:
                 continue
             
             # Reutilizamos las funciones de preprocessing.py para realizar la normalización

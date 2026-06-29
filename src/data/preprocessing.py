@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import numpy as np
-import cv2
-
 
 def apply_mask_format(mask, mask_format="binary"):
     """Convert a mask array to the configured semantic format."""
@@ -20,9 +18,8 @@ def to_grayscale(image):
     """Convert an image to single-channel grayscale.
 
     If the image is already 2-D or single-channel it is returned as-is
-    (squeezed to 2-D).  RGB/BGR 3-channel images are converted using
-    OpenCV (luminance-weighted).  4-channel images (BGRA) are also
-    handled.
+    (squeezed to 2-D). RGB/RGBA 3 or 4-channel images are converted using
+    the standard luminance formula.
     """
     arr = np.asarray(image)
 
@@ -32,10 +29,11 @@ def to_grayscale(image):
     channels = arr.shape[2] if arr.ndim == 3 else 1
     if channels == 1:
         return arr[:, :, 0]
-    if channels == 3:
-        return cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY)
-    if channels == 4:
-        return cv2.cvtColor(arr, cv2.COLOR_BGRA2GRAY)
+    
+    if channels >= 3:
+        # Standard luminance formula for RGB: 0.2989 * R + 0.5870 * G + 0.1140 * B
+        gray = 0.2989 * arr[..., 0] + 0.5870 * arr[..., 1] + 0.1140 * arr[..., 2]
+        return gray.astype(arr.dtype)
 
     # Fallback: take the mean across channels
     return arr.mean(axis=-1).astype(arr.dtype)
