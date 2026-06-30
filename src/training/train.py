@@ -28,7 +28,7 @@ def train_model(
         model = build_unet(
             input_shape=(patch_size[0], patch_size[1], 1), 
             num_classes=1,
-            base_filters=32,
+            base_filters=16,
             depth=4,
             dropout_rate=0.0,
             use_batch_norm=True
