@@ -9,9 +9,7 @@ from PIL import Image
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RAW_DIR = REPO_ROOT / "data" / "raw"
-# Usamos el ID exacto que has proporcionado
-KAGGLE_ID = "andrewmvd/drive-digital-retinal-images-for-vessel-extraction"
-
+KAGGLE_ID = "zionfuo/drive2004"
 
 def _binarize_and_save(src_path: Path, dst_path: Path) -> None:
     """Abre la máscara .gif esperada, la binariza a 0/255 y la guarda como .png."""
