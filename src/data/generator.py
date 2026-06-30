@@ -6,6 +6,8 @@ import numpy as np
 import keras
 from keras import layers
 
+from src.data.preprocessing import load_grayscale_image, binarize_mask
+
 
 class DataGenerator(keras.utils.Sequence):
     """Generador de datos para Keras que lee de disco, parchea y aumenta imágenes sobre la marcha.
@@ -41,13 +43,9 @@ class DataGenerator(keras.utils.Sequence):
 
         for sample in self.samples:
             try:
-                img = keras.utils.img_to_array(
-                    keras.utils.load_img(sample.image_path, color_mode="grayscale")
-                ).astype("float32") / 255.0
-                mask = keras.utils.img_to_array(
-                    keras.utils.load_img(sample.mask_path, color_mode="grayscale")
-                )
-                mask = (mask > 0).astype("uint8")
+                img = load_grayscale_image(sample.image_path, normalize=True)
+                mask = load_grayscale_image(sample.mask_path, normalize=False)
+                mask = binarize_mask(mask, threshold=0)
             except Exception:
                 continue
             self.images_cache.append(img)

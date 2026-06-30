@@ -9,6 +9,7 @@ from PIL import Image
 from src.config import CONFIGS_DIR, PROJECT_ROOT, load_json_config
 from src.evaluation.inference import load_model, predict_mask
 from src.data.patching import extract_patches, reconstruct_from_patches
+from src.data.preprocessing import load_grayscale_image
 
 def main():
     parser = argparse.ArgumentParser(description="Predecir máscaras para imágenes completas.")
@@ -37,8 +38,7 @@ def main():
     for img_path in image_paths:
         print(f" -> Reconstruyendo {img_path.name}...")
         try:
-            img_raw = keras.utils.load_img(img_path, color_mode="grayscale")
-            img_array = keras.utils.img_to_array(img_raw).astype("float32") / 255.0
+            img_array = load_grayscale_image(img_path, normalize=True)
         except Exception:
             print(f"[WARN] No se pudo leer la imagen: {img_path}")
             continue

@@ -7,18 +7,8 @@ import keras
 
 from src.config import PROJECT_ROOT
 
-def dice_coefficient(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Calcula el DICE score entre dos máscaras binarias."""
-    y_true_bin = (y_true > 127).astype(np.float32)
-    y_pred_bin = (y_pred > 127).astype(np.float32)
-    
-    intersection = np.sum(y_true_bin * y_pred_bin)
-    sum_true_pred = np.sum(y_true_bin) + np.sum(y_pred_bin)
-    
-    if sum_true_pred == 0:
-        return 1.0
-        
-    return (2.0 * intersection) / sum_true_pred
+from src.evaluation.metrics import dice_coefficient
+from src.data.preprocessing import load_grayscale_image, binarize_mask
 
 def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str, expert_num: int) -> float | None:
     """Busca la máscara de un experto, la carga y calcula el DICE score."""
@@ -33,8 +23,10 @@ def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str, exper
             break
 
     if mask_path:
-        mask = keras.utils.img_to_array(keras.utils.load_img(mask_path, color_mode="grayscale"))
-        return dice_coefficient(mask, pred_img)
+        mask = load_grayscale_image(mask_path, normalize=False)
+        mask_bin = binarize_mask(mask, threshold=127)
+        pred_bin = binarize_mask(pred_img, threshold=127)
+        return float(keras.ops.convert_to_numpy(dice_coefficient(mask_bin, pred_bin)))
 
     return None
 
@@ -43,7 +35,7 @@ def _evaluate_single_prediction(pred_path: Path, expert1_dir: Path, expert2_dir:
     base_name = pred_path.stem.replace("_pred", "")
     img_id = base_name.split("_")[0]
 
-    pred_img = keras.utils.img_to_array(keras.utils.load_img(pred_path, color_mode="grayscale"))
+    pred_img = load_grayscale_image(pred_path, normalize=False)
 
     score1 = _get_expert_score(pred_img, expert1_dir, img_id, 1)
     score2 = _get_expert_score(pred_img, expert2_dir, img_id, 2)
