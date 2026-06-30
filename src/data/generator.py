@@ -42,12 +42,9 @@ class DataGenerator(keras.utils.Sequence):
         self.masks_cache = []
 
         for sample in self.samples:
-            try:
-                img = load_grayscale_image(sample.image_path, normalize=True)
-                mask = load_grayscale_image(sample.mask_path, normalize=False)
-                mask = binarize_mask(mask, threshold=0)
-            except Exception:
-                continue
+            img = load_grayscale_image(sample.image_path, normalize=True)
+            mask = load_grayscale_image(sample.mask_path, normalize=False)
+            mask = binarize_mask(mask, threshold=0)
             self.images_cache.append(img)
             self.masks_cache.append(mask)
 

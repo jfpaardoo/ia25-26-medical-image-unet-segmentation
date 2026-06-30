@@ -24,8 +24,9 @@ def train_model(
     training_cfg = config.get("training", {})
 
     if model is None:
+        patch_size = tuple(config.get("data", {}).get("patch_size", [128, 128]))
         model = build_unet(
-            input_shape=(256, 256, 1), 
+            input_shape=(patch_size[0], patch_size[1], 1), 
             num_classes=1,
             base_filters=32,
             depth=4,

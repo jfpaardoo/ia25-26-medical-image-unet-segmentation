@@ -32,19 +32,8 @@ def discover_drive_samples(root_dir: Path | str, split: str = "training") -> lis
     root = Path(root_dir)
     images_dir = root / split / "images"
     
-    # La base de datos original tiene las máscaras en '1st_manual' como '.gif'
-    # Pero el dataset de Kaggle descargado las tiene en 'masks' como '.png'
-    masks_dir_original = root / split / "1st_manual"
-    masks_dir_kaggle = root / split / "masks"
-    
-    if masks_dir_kaggle.exists():
-        masks_dir = masks_dir_kaggle
-        mask_ext = ".png"
-        mask_suffix = ""
-    else:
-        masks_dir = masks_dir_original
-        mask_ext = ".gif"
-        mask_suffix = "_manual1"
+    masks_dir = root / split / "masks"
+    mask_ext = ".png"
     
     if not images_dir.exists() or not masks_dir.exists():
         raise FileNotFoundError(
@@ -56,12 +45,7 @@ def discover_drive_samples(root_dir: Path | str, split: str = "training") -> lis
     samples = []
     # Las imágenes en DRIVE son .tif
     for img_path in sorted(images_dir.glob("*.tif")):
-        # Dependiendo del formato, el nombre de la máscara varía
-        if mask_suffix:
-            img_id = img_path.stem.split('_')[0]
-            mask_name = f"{img_id}{mask_suffix}{mask_ext}"
-        else:
-            mask_name = f"{img_path.stem}{mask_ext}"
+        mask_name = f"{img_path.stem}{mask_ext}"
             
         mask_path = masks_dir / mask_name
         
