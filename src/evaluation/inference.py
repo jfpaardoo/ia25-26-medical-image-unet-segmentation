@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
 import numpy as np
 import keras
 
-from .metrics import DiceCoefficient, dice_coefficient, dice_loss, iou_score
+from .metrics import DiceCoefficient, Specificity, dice_coefficient, dice_loss
 
 
 def _get_expected_channels(model: keras.Model) -> Optional[int]:
@@ -61,22 +61,13 @@ def _postprocess_predictions(predictions: np.ndarray, threshold: float) -> np.nd
     return np.argmax(predictions, axis=-1).astype(np.uint8)
 
 
-def _as_reference_masks(masks: np.ndarray | Iterable[np.ndarray]) -> list[np.ndarray]:
-    """Convert an array or iterable of arrays into a list of numpy arrays."""
-    if not isinstance(masks, (list, tuple)):
-        return [np.asarray(masks)]
-    if not masks:
-        raise ValueError("At least one reference mask array is required.")
-    return [np.asarray(mask) for mask in masks]
-
-
 def load_model(model_path: Path | str, compile: bool = False) -> keras.Model:
     """Load a serialized Keras model from disk."""
     custom_objects = {
         "dice_coefficient": dice_coefficient,
         "dice_loss": dice_loss,
-        "iou_score": iou_score,
         "DiceCoefficient": DiceCoefficient,
+        "Specificity": Specificity,
     }
     return keras.saving.load_model(str(model_path), compile=compile, custom_objects=custom_objects)
 
@@ -100,29 +91,3 @@ def predict_mask(
     if return_probabilities:
         return masks, probabilities
     return masks
-
-
-def evaluate_model(
-    model_or_path: keras.Model | Path | str,
-    images: np.ndarray,
-    masks: np.ndarray | Iterable[np.ndarray],
-    threshold: float = 0.5,
-    metrics: Optional[Iterable] = None,
-) -> dict[str, float]:
-    """Run inference and compute metrics over prepared arrays.
-
-    If multiple reference mask arrays are provided, each metric is computed
-    against every reference and the resulting scores are averaged.
-    """
-    if metrics is None:
-        metrics = [dice_coefficient, iou_score]
-
-    reference_masks = _as_reference_masks(masks)
-    pred_masks = predict_mask(model_or_path, images, threshold=threshold)
-    
-    results: dict[str, float] = {}
-    for metric in metrics:
-        name = getattr(metric, "__name__", metric.__class__.__name__)
-        scores = [float(metric(reference_mask, pred_masks)) for reference_mask in reference_masks]
-        results[name] = float(np.mean(scores))
-    return results

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Iterable
 
 import keras
 
@@ -44,7 +43,6 @@ def build_callbacks(
             patience=patience,
             restore_best_weights=True,
         ),
-        keras.callbacks.TensorBoard(log_dir=str(logs_dir)),
     ]
 
     return callbacks

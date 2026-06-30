@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import yaml
+import json
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,8 +18,9 @@ FINAL_MODELS_DIR = MODELS_DIR / "final"
 LOGS_DIR = ARTIFACTS_DIR / "logs"
 
 
-def load_yaml_config(config_path: Path) -> dict[str, Any]:
-	"""Load a YAML config file into a dictionary."""
-
-	with config_path.open("r", encoding="utf-8") as handle:
-		return yaml.safe_load(handle) or {}
+def load_json_config(config_path: Path) -> dict[str, Any]:
+	"""Load a JSON config file into a dictionary."""
+	if not config_path.exists():
+		return {}
+	with open(config_path, "r", encoding="utf-8") as handle:
+		return json.load(handle) or {}

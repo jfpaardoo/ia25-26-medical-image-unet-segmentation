@@ -46,11 +46,11 @@ Entregable de Diego:
 2. Formato de máscara: binario o multiclase.
 3. Nombre y ubicación de los ficheros de salida.
 4. Métrica principal para comparación.
-5. Semilla y parámetros comunes en `configs/default.yaml`.
+5. Semilla y parámetros comunes en `configs/default.json`.
 
 ## Regla de integración
 
-- Si Juan cambia el formato de datos, actualiza primero el contrato en `README.md` y `configs/default.yaml`.
+- Si Juan cambia el formato de datos, actualiza primero el contrato en `README.md` y `configs/default.json`.
 - Si Diego cambia la forma de entrada del modelo, debe hacerlo solo si el contrato común lo permite.
 - Ninguno debe asumir detalles internos del otro sin documentarlos primero.
 
