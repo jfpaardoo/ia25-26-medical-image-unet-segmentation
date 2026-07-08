@@ -6,7 +6,7 @@ import numpy as np
 import keras
 from PIL import Image
 
-from src.config import CONFIGS_DIR, PROJECT_ROOT, load_json_config
+from src.config import CONFIGS_DIR, PROJECT_ROOT, PREDICTIONS_DIR, load_json_config
 from src.evaluation.inference import load_model, predict_mask
 from src.data.patching import extract_patches, reconstruct_from_patches
 from src.data.preprocessing import load_grayscale_image
@@ -16,7 +16,7 @@ def main():
     parser.add_argument("--config", type=Path, default=CONFIGS_DIR / "default.json")
     parser.add_argument("--model", type=Path, required=True)
     parser.add_argument("--images-dir", type=Path, default=PROJECT_ROOT / "data/raw/test/images")
-    parser.add_argument("--output", type=Path, default=PROJECT_ROOT / "artifacts/predictions_full")
+    parser.add_argument("--output", type=Path, default=PREDICTIONS_DIR)
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
 
@@ -38,17 +38,15 @@ def main():
     for img_path in image_paths:
         print(f" -> Reconstruyendo {img_path.name}...")
         try:
-            img_array = load_grayscale_image(img_path, normalize=True)
+            img_array = load_grayscale_image(img_path)
         except Exception:
             print(f"[WARN] No se pudo leer la imagen: {img_path}")
             continue
 
-        dummy_mask = np.zeros(img_array.shape[:2], dtype=np.uint8)[..., None]
         # Extraemos parches con solapamiento de la mitad para evitar bordes duros
         stride = [max(1, patch_size[0] // 2), max(1, patch_size[1] // 2)]
         image_patches, _, positions, _ = extract_patches(
-            img_array,
-            dummy_mask,
+            image=img_array,
             patch_size=patch_size,
             stride=stride
         )

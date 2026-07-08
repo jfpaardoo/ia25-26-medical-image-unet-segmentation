@@ -6,7 +6,7 @@ from typing import Any, Optional
 
 import keras
 
-from src.config import PROJECT_ROOT
+from src.config import PROJECT_ROOT, CHECKPOINTS_DIR, LOGS_DIR
 from src.evaluation.metrics import DiceCoefficient, Specificity, bce_dice_loss
 from src.models.unet import build_unet
 from src.training.callbacks import build_callbacks
@@ -28,20 +28,24 @@ def train_model(
         model = build_unet(
             input_shape=(patch_size[0], patch_size[1], 1), 
             num_classes=1,
-            base_filters=16,
-            depth=4,
-            dropout_rate=0.0,
-            use_batch_norm=True
+            base_filters=config.get("model", {}).get("base_filters", 16),
+            depth=config.get("model", {}).get("depth", 4),
+            dropout_rate=config.get("model", {}).get("dropout_rate", 0.25),
+            use_batch_norm=config.get("model", {}).get("use_batch_norm", True)
         )
 
-    checkpoints_dir = PROJECT_ROOT / config.get("outputs", {}).get("checkpoints_dir", "artifacts/checkpoints")
-    logs_dir = PROJECT_ROOT / config.get("outputs", {}).get("logs_dir", "artifacts/logs")
-    final_models_dir = PROJECT_ROOT / config.get("outputs", {}).get("final_model_dir", "artifacts/models")
+    checkpoints_dir = config.get("outputs", {}).get("checkpoints_dir", CHECKPOINTS_DIR)
+    logs_dir = config.get("outputs", {}).get("logs_dir", LOGS_DIR)
+    
+    if isinstance(checkpoints_dir, str):
+        checkpoints_dir = PROJECT_ROOT / checkpoints_dir
+    if isinstance(logs_dir, str):
+        logs_dir = PROJECT_ROOT / logs_dir
 
     callbacks = build_callbacks(
         checkpoints_dir=checkpoints_dir, 
         logs_dir=logs_dir, 
-        monitor="val_loss"
+        monitor="val_dice"
     )
 
     model.compile(
@@ -61,8 +65,5 @@ def train_model(
         epochs=int(training_cfg.get("epochs", 100)),
         callbacks=callbacks
     )
-
-    final_models_dir.mkdir(parents=True, exist_ok=True)
-    model.save(final_models_dir / "unet_final.keras")
 
     return model, history

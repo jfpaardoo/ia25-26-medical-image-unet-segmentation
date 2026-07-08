@@ -16,6 +16,7 @@ CONFIGS_DIR = PROJECT_ROOT / "configs"
 CHECKPOINTS_DIR = MODELS_DIR / "checkpoints"
 FINAL_MODELS_DIR = MODELS_DIR / "final"
 LOGS_DIR = ARTIFACTS_DIR / "logs"
+PREDICTIONS_DIR = ARTIFACTS_DIR / "predictions"
 
 
 def load_json_config(config_path: Path) -> dict[str, Any]:

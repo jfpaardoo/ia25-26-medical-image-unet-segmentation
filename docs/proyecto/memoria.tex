@@ -69,14 +69,28 @@ La distribución de los datos se estructura metodológicamente en dos conjuntos 
     \item \textbf{Conjunto de Prueba (\textit{Test Set}):} Incluye las 20 imágenes restantes no vistas por el modelo. A diferencia del conjunto de entrenamiento, esta partición dispone de segmentaciones realizadas por dos expertos clínicos independientes. Este factor es fundamental para la investigación, ya que permite evaluar el rendimiento del algoritmo comparándolo directamente contra la variabilidad inter-observador intrínseca al criterio humano.
 \end{itemize}
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=\linewidth]{demo_05_split_stats.png}
-    \caption{Estadísticas consolidadas del dataset tras su preparación. Se muestra la distribución volumétrica de parches por partición (2.000 generados para el entrenamiento y 1.000 para el test) y un resumen técnico de los parámetros del pipeline, incluyendo las dimensiones de recorte, el nivel de solapamiento (\textit{stride}), el aumento de datos y la semilla determinista empleada.}
-    \label{fig:split_stats}
-\end{figure}
+\begin{table}[htbp]
+\centering
+\caption{Resumen del Pipeline de Datos y Experimentación}
+\label{tab:pipeline_summary}
+\begin{tabular}{@{}p{3.5cm}p{4.5cm}@{}}
+\toprule
+\textbf{Parámetro} & \textbf{Valor / Configuración} \\
+\midrule
+Total Muestras Crudas & 40 imágenes (DRIVE 2004) \\
+Conjunto de Entrenamiento & 20 imágenes \\
+Conjunto de Prueba (Test) & 20 imágenes \\
+Mecanismo de Validación & 5-Fold Cross-Validation (Dinámico) \\
+Resolución Original & $565 \times 584$ píxeles \\
+Tamaño de Parche (\textit{Patch}) & $128 \times 128$ píxeles \\
+Extracción (Entrenamiento) & Aleatoria (\textit{Random Cropping} dinámico) \\
+Extracción (Inferencia) & Ventana deslizante (\textit{Stride} = 64) \\
+Aumentos de Datos (\textit{Augmentation}) & Giros ortogonales y transposiciones especulares \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-\textbf{Objetivo Principal del Trabajo:} El propósito central es implementar de manera integral, entrenar y evaluar rigurosamente una arquitectura convolucional U-Net que sea capaz de segmentar de forma automática los capilares sanguíneos en imágenes no vistas. El flujo de preprocesamiento, como ilustra la Fig. \ref{fig:split_stats}, genera un volumen de 3.000 parches independientes. El reto analítico primario reside en que el modelo debe sobreponerse al fuerte desequilibrio de clases natural del dominio (las estructuras vasculares ocupan apenas entre un 10\% y un 15\% del campo de visión). Bajo estas condiciones adversas, el sistema debe superar una métrica media de DICE de \textbf{0.75} sobre el conjunto de test, debiendo calcularse este promedio contrastando las predicciones contra las máscaras de los \textbf{dos expertos clínicos} de forma independiente.
+\textbf{Objetivo Principal del Trabajo:} El propósito central es implementar de manera integral, entrenar y evaluar rigurosamente una arquitectura convolucional U-Net que sea capaz de segmentar de forma automática los capilares sanguíneos en imágenes no vistas. El flujo de preprocesamiento extrae dinámicamente cientos de parches independientes por iteración (época). El reto analítico primario reside en que el modelo debe sobreponerse al fuerte desequilibrio de clases natural del dominio (las estructuras vasculares ocupan apenas entre un 10\% y un 15\% del campo de visión). Bajo estas condiciones adversas, el sistema debe superar una métrica media de DICE de \textbf{0.75} sobre el conjunto de test, debiendo calcularse este promedio contrastando las predicciones contra las máscaras de los \textbf{dos expertos clínicos} de forma independiente.
 
 \section{Métricas de Evaluación}
 La evaluación de la precisión predictiva en problemas de segmentación biomédica requiere el empleo de métricas estrictamente específicas, distanciándose de las métricas clásicas de clasificación general. Debido al severo desequilibrio de clases previamente mencionado, utilizar únicamente la Precisión Global (\textit{Accuracy}) resultaría una métrica inútil y altamente engañosa. Un modelo trivial o «perezoso» que simplemente se dedicara a clasificar la totalidad de los píxeles de cualquier imagen como tejido sano de fondo (la clase mayoritaria), superaría fácilmente una tasa de acierto del 85\% sin haber logrado detectar una sola estructura vascular.
@@ -104,6 +118,8 @@ IoU = \frac{|X \cap Y| + \epsilon}{|X \cup Y| + \epsilon} = \frac{TP}{TP + FP + 
 \text{Especificidad} = \frac{TN}{TN + FP}
 \end{equation}
 
+\textbf{Justificación del Diagnóstico Algorítmico:} Aunque el Coeficiente DICE es la métrica principal y determinante para la evaluación del proyecto, se ha incorporado de forma explícita el cálculo de las métricas adicionales mencionadas anteriormente. El motivo de esta decisión radica en la necesidad de dotar al sistema de herramientas de diagnóstico algorítmico interno. Mientras que el DICE proporciona una visión global del rendimiento, la Sensibilidad y Especificidad permiten medir de forma aislada la capacidad del modelo para no pasar por alto capilares reales y evitar inventar falsas estructuras vasculares, respectivamente. Esto proporciona una visibilidad analítica crucial sobre el comportamiento de la red frente al profundo desbalance paramétrico del 85\% frente al 15\% que caracteriza a estas muestras biomédicas.
+
 \section{Metodología e Implementación}
 
 \subsection{Obtención Automatizada y Búsqueda de Datos}
@@ -126,40 +142,38 @@ Dadas las irregularidades extremas en la adquisición fotográfica (alteraciones
     \label{fig:preprocessing}
 \end{figure}
 
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=\linewidth]{demo_06_processed_samples.png}
-    \caption{Parches preprocesados resultantes listos para el entrenamiento supervisado, alineados con sus respectivas máscaras binarias de segmentación.}
-    \label{fig:processed_samples}
-\end{figure}
 
-\subsection{Estrategia de Fragmentación (\textit{Patching})}
-El mayor riesgo técnico al entrenar arquitecturas profundas sobre bases de datos médicas extremadamente limitadas (20 imágenes de entrenamiento) es el sobreajuste o \textit{overfitting}. Si el modelo viera la imagen completa reiteradamente, terminaría por memorizar las topologías exactas. Para evitarlo proactivamente, se emplea la técnica matemática de \textbf{\textit{Patching}} (\texttt{patching.py}). 
 
-En lugar de procesar la fotografía entera, se descompone la matriz en sub-regiones independientes (mosaicos) de $128 \times 128$ píxeles, empleando un \textit{stride} (salto) equivalente a 128 píxeles para eludir solapamientos redundantes en entrenamiento. El conflicto geométrico derivado del desbordamiento en los márgenes de la imagen se soluciona empleando una estrategia de relleno reflectivo (\texttt{mode='reflect'}). A diferencia del relleno con ceros (zonas negras) que induce bordes artificiales nocivos para la red convolucional, el efecto espejo preserva la continuidad del patrón vascular (Tabla \ref{tab:pseudocode1}).
+\subsection{Estrategia de Fragmentación Dual (\textit{Patching})}
+El mayor riesgo técnico al entrenar arquitecturas profundas sobre bases de datos médicas extremadamente limitadas (apenas 20 imágenes de entrenamiento) es el sobreajuste o \textit{overfitting}. Si el modelo viera la imagen completa reiteradamente de forma idéntica, terminaría por memorizar las topologías exactas. Para evitarlo proactivamente, se emplea una técnica matemática dual de \textbf{\textit{Patching}}. 
+
+En la fase de entrenamiento, la clase generadora \texttt{DataGenerator} aplica un mecanismo de \textbf{recorte aleatorio dinámico (\textit{Random Cropping})}. En cada época, se extraen decenas de coordenadas aleatorias $(x, y)$ de las que se seccionan mosaicos sub-regionales de $128 \times 128$ píxeles. Esto funciona como un poderoso regularizador natural: al variar continuamente el encuadre exacto del parche, la red U-Net nunca llega a procesar exactamente el mismo fragmento retiniano dos veces, inhibiendo de raíz la memorización de mapas de fondo. 
+
+Por el contrario, durante la fase de validación y la \textbf{inferencia final} sobre el conjunto de prueba (\texttt{predict.py}), el parcheo aleatorio es sustituido por una extracción ordenada mediante ventana deslizante (\textit{Sliding Window}). El conflicto geométrico derivado del desbordamiento en los márgenes de la imagen se soluciona empleando una estrategia de relleno constante o reflectivo, de modo que las zonas sin información original se neutralizan sin destruir la continuidad geométrica de los bordes.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{demo_04_patching.png}
-    \caption{Proceso dinámico de fragmentación geométrica en mosaicos (\textit{Patching}). Esta técnica permite multiplicar la dimensionalidad del conjunto de datos original, generando miles de muestras independientes a partir de unas pocas decenas de fotografías base.}
+    \caption{Proceso de fragmentación geométrica en mosaicos (\textit{Patching}). El uso de ventanas de $128 \times 128$ adapta las dimensiones nativas dispares al \textit{input} requerido por la arquitectura convolucional de Keras.}
     \label{fig:patching}
 \end{figure}
 
 \begin{table}[htbp]
 \centering
-\caption{Algoritmo 1: Extracción Geométrica de Parches}
+\caption{Algoritmo 1: Extracción Aleatoria Dinámica (Entrenamiento)}
 \label{tab:pseudocode1}
 \begin{tabular}{|p{8cm}|}
 \hline
-\textbf{Procedimiento} \texttt{ExtractPatches} \\
-\textbf{Entradas Computacionales:} Matriz de Imagen $I$, Tensor Máscara $M$, Resolución Espacial $P$, Salto (Stride) $S$ \\
-\textbf{Salida:} Colección de subtensores espaciales ($N \times P \times P \times C$) \\
-1. Calcular el desbordamiento dimensional en los ejes horizontal y vertical. \\
-2. Aplicar interpolación por padding reflectivo para cubrir el desbordamiento detectado. \\
-3. Iterar espacialmente a través de la matriz aplicando saltos de magnitud $S$. \\
-4. Extraer el hiperplano correspondiente a la región $P \times P$ actual. \\
-5. Almacenar el subtensor en la memoria temporal. \\
-6. Retornar la lista consolidada de recortes espaciales. \\
+\textbf{Procedimiento} \texttt{RandomPatchExtraction} \\
+\textbf{Entradas Computacionales:} Matriz de Imagen $I$, Tensor Máscara $M$, Resolución Espacial $P$, Total de Parches $N$ \\
+\textbf{Salida:} Lote de mosaicos espaciales aleatorios ($N \times P \times P \times 1$) \\
+1. Determinar los márgenes máximos permitidos $(max\_y = Alto - P)$, $(max\_x = Ancho - P)$. \\
+2. Bucle desde 1 hasta $N$: \\
+3. \quad Generar coordenadas aleatorias $(y_{start}, x_{start})$ dentro de los márgenes. \\
+4. \quad Seccionar las sub-matrices $I_{patch}$ y $M_{patch}$ a partir de las coordenadas generadas. \\
+5. \quad Aplicar relleno (\textit{padding}) si la imagen base es más pequeña que la ventana $P$. \\
+6. \quad Aplicar transposición especular aleatoria (\textit{data augmentation}). \\
+7. Retornar el lote preprocesado, listo para la época de entrenamiento actual. \\
 \hline
 \end{tabular}
 \end{table}
@@ -174,12 +188,12 @@ En el transcurso evolutivo de este proyecto, la base de código experimentó una
 
 Esta madurez arquitectónica queda patente en la estricta simplificación del script de recolección de datos y la supresión de módulos obsoletos (tales como los antiguos procesos de recolección \texttt{prepare\_data.py}). Cada clase lógica (manejo del dataset, algoritmos de evaluación, métricas estadísticas) ostenta ahora una responsabilidad única y aislada. 
 
-Asociado al generador dinámico, el \textbf{Aumento de Datos} (\textit{Data Augmentation}) en memoria se restringe deliberadamente a aplicar de forma exclusiva rotaciones ortogonales puras ($90^\circ, 180^\circ, 270^\circ$) y transposiciones especulares tanto en el eje vertical como horizontal (Fig. \ref{fig:augmentations}). Se descartó tajantemente la inyección de rotaciones angulares libres debido a que la interpolación matemática de píxeles resultante destruye y difumina irreparablemente los bordes micro-estructurales de capilares con apenas un píxel de grosor, perjudicando severamente el aprendizaje focalizado de la red.
+Asociado al generador dinámico, el \textbf{Aumento de Datos} (\textit{Data Augmentation}) en memoria se restringe deliberadamente a aplicar de forma exclusiva transposiciones especulares tanto en el eje vertical como horizontal (\textit{flips}). Se descartó tajantemente la inyección de rotaciones angulares libres o transformaciones más complejas debido a que la interpolación matemática de píxeles resultante destruye y difumina irreparablemente los bordes micro-estructurales de capilares con apenas un píxel de grosor, perjudicando severamente el aprendizaje focalizado de la red.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{demo_03_augmentations.png}
-    \caption{Representación gráfica de las transformaciones espaciales restrictivas aplicadas al vuelo. El uso exclusivo de rotaciones ortogonales y giros especulares (\textit{flips}) garantiza la preservación inalterada de la morfología microvascular a nivel de píxel sin interpolaciones destructivas.}
+    \caption{Representación gráfica de las transformaciones espaciales restrictivas aplicadas al vuelo. El uso exclusivo de giros especulares (\textit{flips}) garantiza la preservación inalterada de la morfología microvascular a nivel de píxel sin interpolaciones destructivas.}
     \label{fig:augmentations}
 \end{figure}
 
@@ -201,7 +215,7 @@ La principal innovación arquitectónica que consagra a la red U-Net reside en l
 \centering
 \caption{Parametrización Arquitectónica de la Red Neuronal}
 \label{tab:hyperparams}
-\begin{tabular}{@{}lp{3cm}p{3.5cm}@{}}
+\begin{tabular}{@{}p{2.3cm}p{2.5cm}p{3.4cm}@{}}
 \toprule
 \textbf{Componente Lógico} & \textbf{Valor Empleado} & \textbf{Justificación Científica} \\
 \midrule
@@ -258,10 +272,12 @@ El riguroso proceso de certificación predictiva del modelo se materializó al r
 
 \section{Resultados y Conclusiones}
 
-\subsection{Exposición Analítica de Resultados Cuantitativos}
-Una vez concluida la calibración paramétrica y finalizada la batería de validación cruzada en 5 pliegues, el bloque predictivo fue sometido al escrutinio imparcial del pipeline de evaluación. Procesando de manera completamente automatizada y asilada las inferencias gráficas depositadas en \texttt{artifacts/predictions\_full/}, los cálculos definitivos sobre el esquivo conjunto de prueba corroboraron que el comportamiento del modelo desborda de forma sustancial las severas expectativas predefinidas de evaluación universitaria.
+\subsection{Resultados Cuantitativos}
+Una vez finalizado el entrenamiento y la validación cruzada (5-Fold), el modelo fue evaluado de forma automatizada sobre el conjunto de prueba (imágenes de la carpeta \texttt{artifacts/predictions\_full/}). Los resultados obtenidos superan satisfactoriamente los requisitos establecidos para el proyecto.
 
-Particularizando, la red estructural consolidada demostró su fortaleza obteniendo de media un \textbf{Coeficiente DICE de 0.8115} junto con un robusto \textbf{Índice IoU situado en 0.6830} durante el cruce contra las etiquetas médicas especializadas. El rebasamiento certero y estadísticamente holgado de la frontera analítica impuesta por el criterio de aceptación ($>0.75$), atestigua empíricamente un grado de sensibilidad para el rastreo y modelado capilar netamente equiparable al margen natural de discrepancia y concurrencia existente entre diferentes facultativos y especialistas humanos.
+En particular, la arquitectura U-Net ha conseguido un sobresaliente \textbf{Coeficiente DICE medio global de 0.8326} al compararse con las segmentaciones manuales de los expertos médicos. Desglosando este resultado, el modelo alcanzó un rendimiento de \textbf{0.8216} frente a las delineaciones del Experto 1, y un \textbf{0.8435} contra las del Experto 2. Estos valores superan con amplio margen el umbral mínimo exigido ($>0.75$), demostrando que el algoritmo despliega una precisión en la detección de vasos sanguíneos plenamente comparable a la concordancia natural que existe entre distintos especialistas humanos.
+
+De forma adicional, el análisis de las métricas de diagnóstico (\textbf{Sensibilidad} y \textbf{Especificidad}) corrobora la enorme solidez de la red neuronal. Se ha obtenido una \textbf{Especificidad media de 0.9845}, lo cual certifica de forma contundente que el modelo es excepcional evitando Falsos Positivos; es decir, tiene un margen de error del $\approx$ 1.5\% a la hora de confundir tejido de fondo sano con vasos sanguíneos. Por otra parte, la \textbf{Sensibilidad media alcanza un 0.8338}, un valor notable considerando la dificultad intrínseca de recuperar las microestructuras de 1 píxel de grosor, demostrando que el modelo ha aprendido a localizar la inmensa mayoría de las topologías vasculares reales, minimizando los Falsos Negativos.
 
 \begin{figure}[htbp]
     \centering
@@ -275,27 +291,27 @@ Particularizando, la red estructural consolidada demostró su fortaleza obtenien
         \includegraphics[width=\linewidth]{demo_08_pred_full.png}
         \\ \vspace{0.2cm} \small (b) Reconstrucción Topológica Continua
     \end{minipage}
-    \caption{Comparativa geométrica exhaustiva de la inferencia procesada. (a) Inferencia cruda ejecutada sobre un recorte espacial aislado, mostrando pérdida severa de contexto perimetral. (b) Reconstrucción mediante la técnica de promediado de solapamiento (\textit{overlap blending}), con la subsiguiente disolución total de los artefactos perimetrales. Preserva en todo momento la frágil topología celular y proporciona un mapa apto e inmaculado para la evaluación del dictamen médico final.}
+    \caption{Comparativa geométrica de la predicción. (a) Inferencia sobre un recorte aislado, mostrando artefactos en los bordes. (b) Reconstrucción de la imagen completa mediante la técnica de promediado de solapamiento (\textit{overlap blending}), eliminando las discontinuidades espaciales y preservando correctamente la topología celular.}
     \label{fig:predictions_full}
 \end{figure}
 
-Visualmente hablando (según corrobora sin ambigüedades la Fig. \ref{fig:predictions_full}), la implementación de ingeniería en torno al ensamblado algorítmico matemático de solapamiento fue un triunfo innegable a nivel de diseño computacional, aportando resoluciones liminales continuas, suaves e ininterrumpidas, exentas al cien por cien de las destructivas anomalías de corte espacial que suelen mermar los productos algorítmicos.
+Como se aprecia visualmente en la Fig. \ref{fig:predictions_full}, la técnica de reconstrucción de imágenes completas a partir de parches con solapamiento ha dado muy buenos resultados. El mapa final de predicción se muestra continuo y sin cortes ni artefactos en los bordes, preservando correctamente la estructura de los vasos capilares.
 
-\subsection{Análisis Crítico de Limitaciones y Puntos Ciegos (FP/FN)}
-Aunque la contundencia de las métricas obtenidas es indiscutible en los análisis cuantitativos, una deconstrucción profunda y minuciosa de los escasos pero relevantes fallos visuales proyectados desvela, al menos, dos barreras inminentes en la automatización computacional del cribado oftalmológico.
+\subsection{Análisis de Errores (Falsos Positivos y Falsos Negativos)}
+A pesar de los buenos resultados generales, el análisis visual de las predicciones revela ciertas limitaciones y errores recurrentes en el modelo.
 
-Por un lado, destaca poderosamente el factor inquebrantable de la \textbf{variabilidad clínica inter-observador}. Un modelo de estas características se encuentra lógicamente cercenado ante una asimetría metodológica de base: resulta estadísticamente inviable lograr un Coeficiente DICE perfecto del 1.0 absoluto cuando la máquina juega recurrentemente a conciliar las discrepancias estructurales manifiestas entre dos médicos que, ante idénticos vasos sanguíneos difusos, toman caminos de marcaje contradictorios y excluyentes. A efectos analíticos, el algoritmo suele enfrentar el castigo numérico por identificar ramificaciones que un profesional consideró viables, pero que su homólogo excluyó, impactando la puntuación final frente a una matriz de sesgos e imprecisiones intrínsecamente humanas.
+Por un lado, el rendimiento se ve afectado por la \textbf{variabilidad inter-observador}. Es estadísticamente imposible alcanzar un DICE de 1.0 cuando los propios expertos humanos presentan discrepancias a la hora de etiquetar los vasos más finos o difusos. En ocasiones, el modelo es penalizado por detectar capilares que un experto marcó pero el otro ignoró, lo que refleja la subjetividad intrínseca de la tarea médica.
 
-Por otro lado, y penetrando de pleno en la casuística de los errores morfológicos locales de la propia máquina, se constata sistemáticamente que los Falsos Negativos (venas omitidas o extraviadas por el mapeo) convergen casi invariablemente en las **estructuras microvasculares situadas en la profunda periferia exterior** del tejido. Son ramificaciones de un único píxel de diámetro real que lidian permanentemente contra el degradado lumínico perimetral del globo ocular, que ni siquiera las más severas normalizaciones cromáticas del preprocesamiento lograron subsanar a nivel funcional. Contrariamente, la ocurrencia de los Falsos Positivos de pequeña escala se localizó, de forma casi excluyente, circundando el duro contraste radiante que enmarca anatómicamente el \textbf{disco óptico}, cuyo intenso halo reflectivo indujo localmente a los filtros convolucionales a perfilar lo que, visual y analíticamente, interpreta como densas falsas paredes venosas.
+Por otro lado, analizando los errores morfológicos del modelo, se observa que los Falsos Negativos (vasos omitidos) se concentran principalmente en las \textbf{microestructuras de la periferia del globo ocular}. Estos capilares, que a menudo tienen el grosor de un único píxel, son difíciles de segmentar debido a la menor iluminación y contraste en los bordes de la imagen. Por el contrario, los Falsos Positivos tienden a aparecer cerca del \textbf{disco óptico}, donde el fuerte brillo reflectivo provoca que la red confunda puntualmente los bordes de esta estructura anatómica con tejido vascular.
 
-\subsection{Conclusiones Finales e Investigaciones Futuras}
-Este extenso ciclo de experimentación confirma, con sólidas pruebas tangibles y un análisis paramétrico pormenorizado, la idoneidad absoluta y la extrema eficiencia analítica de las arquitecturas de redes convolucionales, con énfasis explícito en el diseño U-Net, de cara a neutralizar las inmensas lagunas de segmentación celular. Ha quedado patente que la severidad estadística originada por la privación clínica extrema de muestras radiográficas primarias (\textit{Small Data}) puede eludirse contundentemente articulando sofisticadas rutinas matemáticas y geométricas asociadas al remuestreo sub-regional masivo por mosaicos (\textit{Patching}).
+\subsection{Conclusiones y Trabajo Futuro}
+Este proyecto confirma la eficacia de las redes neuronales convolucionales, concretamente la arquitectura U-Net, para la segmentación automática de imágenes médicas. Se ha comprobado que el uso de parches (\textit{Patching}) y el aumento de datos (\textit{Data Augmentation}) son estrategias fundamentales para entrenar modelos robustos incluso cuando se dispone de un conjunto de datos reducido (\textit{Small Data}).
 
-Las decisiones ingenieriles adoptadas tempranamente a lo largo del proceso de estandarización visual —especialmente la agresiva transformación monocromática y la obligatoria normalización de precisión decimal en base al cálculo flotante continuo— evidenciaron ser pivotes insustituibles a nivel estructural: minimizar e inhibir el ruido cromático brindó a la red de Ronneberger un nítido canal de activación y minimizó severamente las latencias de búsqueda del error. Adicionalmente, el balance híbrido propuesto a nivel matemático entre el error métrico binario clásico y el cálculo de áreas ponderadas vía \textit{Dice Loss}, constituyó la palanca de salvación final contra la condena inicial representada por el descomunal desequilibrio topológico inter-clase de las muestras oculares.
+El preprocesamiento de las imágenes (conversión a escala de grises y normalización) ha sido clave para reducir el ruido y acelerar la convergencia del modelo. Asimismo, el uso de una función de coste combinada (BCE + Dice Loss) ha permitido afrontar con éxito el fuerte desequilibrio de clases, donde los vasos sanguíneos representan apenas un 10-15\% del campo de visión.
 
-La rigurosa actualización arquitectónica lograda a través del paso a interfaces plenamente apoyadas en generadores probabilísticos en memoria (\texttt{DataGenerator}), la erradicación del acoplamiento a pesadas estructuras serializadas previas, así como el rediseño y desacople pragmático de las funciones lógicas que sustentan el motor evaluativo, solidifican categóricamente y transforman todo el ciclo experimental en un robusto activo científico plenamente preparado para admitir iteraciones, actualizaciones y refactorizaciones concurrentes a lo largo del tiempo.
+La refactorización del código hacia un diseño modular, con el uso de generadores dinámicos en memoria (\texttt{DataGenerator}) e integrando utilidades nativas de Keras 3, ha optimizado considerablemente el consumo de memoria RAM y los tiempos de ejecución, dejando una base de código limpia y fácilmente mantenible.
 
-Afrontando el cierre analítico de este estudio, el establecimiento del armazón modular de clases interconectadas e inyectadas por ficheros de configuración externa sirve claramente de lanzadera inicial. Establece inequívocamente las bases de investigación y experimentación requeridas para evolucionar hacia estadios algorítmicos más profundos e interrelacionados, como la inserción paulatina y quirúrgica de mecanismos de \textit{Attention Gates} para refinar e inmunizar a la red ante los focos de ruido localizados, consolidando este proyecto no como un cierre en sí mismo, sino como un eslabón directo hacia un sistema maduro de pre-diagnóstico vascular inteligente, confiable y médicamente viable en los exigentes entornos hospitalarios de segunda opinión del mañana.
+Como posibles líneas de trabajo futuro, se podría explorar la integración de mecanismos de atención (\textit{Attention Gates}) en la red. Esto permitiría al modelo aprender a focalizarse en los vasos sanguíneos ignorando el ruido del disco óptico y la periferia oscurecida, acercando el algoritmo a una herramienta de soporte al diagnóstico clínico en entornos reales.
 
 \begin{thebibliography}{99}
 

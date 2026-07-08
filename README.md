@@ -253,6 +253,6 @@ El entrenamiento de la U-Net se ha realizado con validación cruzada de 5 pliegu
 
 Recientemente se completó una refactorización orientada a eliminar lógica manual en favor de APIs nativas de Keras:
 
-- **Métricas nativas:** `iou_score` (manual) reemplazado por `keras.metrics.BinaryIoU`; `sensitivity` (manual) por `keras.metrics.Recall`; `specificity` (manual) por una clase `Specificity` construida sobre `keras.metrics.TrueNegatives` + `FalsePositives`. El Dice se mantiene (no tiene equivalente nativo en Keras 3).
+- **Métricas:** Se utiliza exclusivamente el DICE score como métrica principal, tal y como especifica el enunciado del proyecto.
 - **Carga de imágenes:** `to_grayscale()` y `normalize_image()` (manuales) sustituidas por `load_img(color_mode='grayscale')` + `img_to_array() / 255.0` (nativos Keras).
 - **Aumento de datos:** `np.fliplr`/`np.flipud` manuales reemplazados por `keras.layers.RandomFlip` con concatenación imagen-máscara para aumentos sincronizados.

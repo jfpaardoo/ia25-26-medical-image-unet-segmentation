@@ -23,7 +23,8 @@ class DataGenerator(keras.utils.Sequence):
         patch_size: tuple[int, int] = (128, 128),
         augment: bool = False,
         shuffle: bool = True,
-        seed: int = 42
+        seed: int = 42,
+        patches_per_image: int = 50,
     ):
         self.samples = samples
         self.batch_size = batch_size
@@ -31,6 +32,7 @@ class DataGenerator(keras.utils.Sequence):
         self.augment = augment
         self.shuffle = shuffle
         self.rng = np.random.default_rng(seed)
+        self.patches_per_image = patches_per_image
 
         # Aumentos con NumPy en lugar de capas Keras para mayor velocidad en CPU
         # (Se aplicarán en _apply_augmentation)
@@ -40,14 +42,13 @@ class DataGenerator(keras.utils.Sequence):
         self.masks_cache = []
 
         for sample in self.samples:
-            img = load_grayscale_image(sample.image_path, normalize=True)
-            mask = load_grayscale_image(sample.mask_path, normalize=False)
+            img = load_grayscale_image(sample.image_path)
+            mask = load_grayscale_image(sample.mask_path)
             mask = binarize_mask(mask, threshold=0)
             self.images_cache.append(img)
             self.masks_cache.append(mask)
 
         # Generar un índice virtual de parches
-        self.patches_per_image = 50
         self.num_total_patches = len(self.images_cache) * self.patches_per_image
         self.indices = np.arange(self.num_total_patches)
         self.on_epoch_end()
@@ -58,7 +59,7 @@ class DataGenerator(keras.utils.Sequence):
     def __getitem__(self, index: int) -> tuple[np.ndarray, np.ndarray]:
         batch_indices = self.indices[index * self.batch_size : (index + 1) * self.batch_size]
 
-        X = np.empty((self.batch_size, *self.patch_size, 1), dtype=np.float32)
+        X = np.empty((self.batch_size, *self.patch_size, 1), dtype=np.uint8)
         y = np.empty((self.batch_size, *self.patch_size, 1), dtype=np.uint8)
 
         for i, idx in enumerate(batch_indices):

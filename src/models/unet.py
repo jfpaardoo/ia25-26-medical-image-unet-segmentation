@@ -24,7 +24,7 @@ def build_unet(
         final_activation = "sigmoid" if num_classes == 1 else "softmax"
 
     inputs = layers.Input(shape=input_shape)
-    x = inputs
+    x = layers.Rescaling(1.0 / 255.0)(inputs)
     skips: list[keras.KerasTensor] = []
     filters = base_filters
 

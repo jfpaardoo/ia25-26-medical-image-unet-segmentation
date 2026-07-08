@@ -5,46 +5,63 @@ from pathlib import Path
 import numpy as np
 import keras
 
-from src.config import PROJECT_ROOT
+from src.config import PROJECT_ROOT, PREDICTIONS_DIR
 
 from src.evaluation.metrics import dice_coefficient
 from src.data.preprocessing import load_grayscale_image, binarize_mask
 
-def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str) -> float | None:
-    """Busca la máscara de un experto, la carga y calcula el DICE score."""
+def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str) -> tuple[float, float, float] | None:
+    """Busca la máscara de un experto, la carga y calcula DICE, Sensibilidad y Especificidad."""
     mask_path = expert_dir / f"{img_id}_test.png"
     
     if mask_path.exists():
-        mask = load_grayscale_image(mask_path, normalize=False)
+        mask = load_grayscale_image(mask_path)
         mask_bin = binarize_mask(mask, threshold=127)
         pred_bin = binarize_mask(pred_img, threshold=127)
-        return float(keras.ops.convert_to_numpy(dice_coefficient(mask_bin, pred_bin)))
+        
+        dice = float(keras.ops.convert_to_numpy(dice_coefficient(mask_bin, pred_bin)))
+        
+        # Calcular TP, TN, FP, FN usando numpy para métricas adicionales
+        tp = np.sum((mask_bin == 1) & (pred_bin == 1))
+        tn = np.sum((mask_bin == 0) & (pred_bin == 0))
+        fp = np.sum((mask_bin == 0) & (pred_bin == 1))
+        fn = np.sum((mask_bin == 1) & (pred_bin == 0))
+        
+        sensitivity = tp / (tp + fn + 1e-7)
+        specificity = tn / (tn + fp + 1e-7)
+        
+        return dice, sensitivity, specificity
 
     return None
 
-def _evaluate_single_prediction(pred_path: Path, expert1_dir: Path, expert2_dir: Path) -> tuple[float | None, float | None]:
+def _evaluate_single_prediction(pred_path: Path, expert1_dir: Path, expert2_dir: Path) -> tuple[tuple[float, float, float] | None, tuple[float, float, float] | None]:
     """Evalúa una sola imagen de predicción contra ambos expertos."""
     base_name = pred_path.stem.replace("_pred", "")
     img_id = base_name.split("_")[0]
 
-    pred_img = load_grayscale_image(pred_path, normalize=False)
+    pred_img = load_grayscale_image(pred_path)
 
     score1 = _get_expert_score(pred_img, expert1_dir, img_id)
     score2 = _get_expert_score(pred_img, expert2_dir, img_id)
 
     return score1, score2
 
-def _print_expert_results(scores: list[float], expert_num: int):
-    """Imprime la media de DICE score para un experto."""
+def _print_expert_results(scores: list[tuple[float, float, float]], expert_num: int):
+    """Imprime la media de DICE, Sensibilidad y Especificidad para un experto."""
     if scores:
-        avg = np.mean(scores)
-        print(f"Experto {expert_num} (Media): {avg:.4f}  (Evaluado en {len(scores)} imágenes)")
+        avg_dice = np.mean([s[0] for s in scores])
+        avg_sens = np.mean([s[1] for s in scores])
+        avg_spec = np.mean([s[2] for s in scores])
+        print(f"Experto {expert_num} (Evaluado en {len(scores)} imágenes):")
+        print(f"  - DICE Score:    {avg_dice:.4f}")
+        print(f"  - Sensibilidad:  {avg_sens:.4f}")
+        print(f"  - Especificidad: {avg_spec:.4f}")
     else:
         print(f"Experto {expert_num}: No se encontraron máscaras de referencia.")
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluar predicciones contra expertos.")
-    parser.add_argument("--predictions-dir", type=Path, default=PROJECT_ROOT / "artifacts/predictions")
+    parser.add_argument("--predictions-dir", type=Path, default=PREDICTIONS_DIR)
     parser.add_argument("--test-dir", type=Path, default=PROJECT_ROOT / "data/raw/test")
     args = parser.parse_args()
 
@@ -83,9 +100,16 @@ def main():
     _print_expert_results(scores_expert2, expert_num=2)
         
     if scores_expert1 and scores_expert2:
-        media_total = np.mean(scores_expert1 + scores_expert2)
+        all_scores = scores_expert1 + scores_expert2
+        media_dice = np.mean([s[0] for s in all_scores])
+        media_sens = np.mean([s[1] for s in all_scores])
+        media_spec = np.mean([s[2] for s in all_scores])
+        
         print("-" * 40)
-        print(f"MEDIA GLOBAL:      {media_total:.4f}")
+        print("MÉTRICAS GLOBALES (Promedio ambos expertos)")
+        print(f"  - MEDIA DICE:          {media_dice:.4f}")
+        print(f"  - MEDIA SENSIBILIDAD:  {media_sens:.4f}")
+        print(f"  - MEDIA ESPECIFICIDAD: {media_spec:.4f}")
     print("=" * 40)
 
 if __name__ == "__main__":

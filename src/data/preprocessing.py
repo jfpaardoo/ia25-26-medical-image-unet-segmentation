@@ -8,12 +8,10 @@ import keras
 import numpy as np
 
 
-def load_grayscale_image(path: Path | str, normalize: bool = False) -> np.ndarray:
-    """Loads an image in grayscale format. Optionally scales it to [0, 1]."""
+def load_grayscale_image(path: Path | str) -> np.ndarray:
+    """Loads an image in grayscale format as uint8."""
     img = keras.utils.img_to_array(keras.utils.load_img(path, color_mode="grayscale"))
-    if normalize:
-        return img.astype(np.float32) / 255.0
-    return img
+    return img.astype(np.uint8)
 
 
 def binarize_mask(mask: np.ndarray, threshold: float = 127) -> np.ndarray:
