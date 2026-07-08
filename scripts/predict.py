@@ -3,7 +3,6 @@
 import argparse
 from pathlib import Path
 import numpy as np
-import keras
 from PIL import Image
 
 from src.config import CONFIGS_DIR, PROJECT_ROOT, PREDICTIONS_DIR, load_json_config

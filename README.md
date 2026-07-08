@@ -251,8 +251,7 @@ Recientemente se completó una refactorización estructural significativa:
 
 El entrenamiento de la U-Net se ha realizado con validación cruzada de 5 pliegues, obteniendo un DICE promedio de 0.8115 sobre el conjunto de test evaluado contra ambos expertos médicos, superando las métricas exigidas. El informe en LaTeX con los resultados está disponible en `docs/proyecto/memoria.tex`.
 
-Recientemente se completó una refactorización orientada a eliminar lógica manual en favor de APIs nativas de Keras:
-
-- **Métricas:** Se utiliza exclusivamente el DICE score como métrica principal, tal y como especifica el enunciado del proyecto.
-- **Carga de imágenes:** `to_grayscale()` y `normalize_image()` (manuales) sustituidas por `load_img(color_mode='grayscale')` + `img_to_array() / 255.0` (nativos Keras).
-- **Aumento de datos:** `np.fliplr`/`np.flipud` manuales reemplazados por `keras.layers.RandomFlip` con concatenación imagen-máscara para aumentos sincronizados.
+Recientemente se completó una refactorización orientada a estabilizar el modelo de cara a su entrega:
+- **Métricas:** Se usa DICE como métrica principal para validación y callbacks, registrándose también IoU, Sensibilidad y Especificidad para fines de diagnóstico clínico.
+- **Carga de imágenes:** Las imágenes se cargan en uint8 con `load_img(color_mode='grayscale')`, lo que reduce drásticamente el consumo de RAM. La normalización de píxeles al rango [0, 1] se realiza limpiamente en GPU gracias a una capa nativa `layers.Rescaling(1.0/255.0)` dentro de la U-Net.
+- **Aumento de datos:** Se aplican giros especulares (flips) sincronizados a imagen y máscara mediante NumPy de forma eficiente dentro de `DataGenerator`.

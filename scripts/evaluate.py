@@ -93,7 +93,7 @@ def main():
             scores_expert2.append(score2)
 
     print("=" * 40)
-    print("RESULTADOS DE LA EVALUACIÓN (DICE SCORE)")
+    print("RESULTADOS DE LA EVALUACIÓN CLÍNICA")
     print("=" * 40)
     
     _print_expert_results(scores_expert1, expert_num=1)

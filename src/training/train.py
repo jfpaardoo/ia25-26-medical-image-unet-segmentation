@@ -42,10 +42,11 @@ def train_model(
     if isinstance(logs_dir, str):
         logs_dir = PROJECT_ROOT / logs_dir
 
+    monitor_metric = "val_dice" if val_data is not None else "dice"
     callbacks = build_callbacks(
         checkpoints_dir=checkpoints_dir, 
         logs_dir=logs_dir, 
-        monitor="val_dice"
+        monitor=monitor_metric
     )
 
     model.compile(

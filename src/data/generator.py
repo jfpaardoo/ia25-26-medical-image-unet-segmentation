@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 import keras
-from keras import layers
 
 from src.data.preprocessing import load_grayscale_image, binarize_mask
 

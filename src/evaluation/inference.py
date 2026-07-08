@@ -28,7 +28,7 @@ def predict_mask(
     batch_size: int = 16,
     return_probabilities: bool = False,
 ) -> tuple[np.ndarray, np.ndarray] | np.ndarray:
-    """Predict segmentation masks from prepared images (B, 256, 256, 1)."""
+    """Predict segmentation masks from prepared images (B, H, W, 1)."""
     
     probabilities = model.predict(images, batch_size=batch_size, verbose=0)
     masks = (probabilities >= threshold).astype(np.uint8)
