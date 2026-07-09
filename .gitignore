@@ -24,8 +24,6 @@ artifacts/figures/*
 !artifacts/figures/.gitkeep
 artifacts/logs/*
 !artifacts/logs/.gitkeep
-artifacts/predictions/*
-!artifacts/predictions/.gitkeep
 
 *.keras
 *.h5

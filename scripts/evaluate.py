@@ -5,36 +5,23 @@ from pathlib import Path
 import numpy as np
 import keras
 
-from src.config import PROJECT_ROOT
+from src.config import PROJECT_ROOT, PREDICTIONS_DIR
 
-def dice_coefficient(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-    """Calcula el DICE score entre dos máscaras binarias."""
-    y_true_bin = (y_true > 127).astype(np.float32)
-    y_pred_bin = (y_pred > 127).astype(np.float32)
+from src.evaluation.metrics import dice_coefficient
+from src.data.preprocessing import load_grayscale_image, binarize_mask
+
+def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str) -> float | None:
+    """Busca la máscara de un experto, la carga y calcula DICE."""
+    mask_path = expert_dir / f"{img_id}_test.png"
     
-    intersection = np.sum(y_true_bin * y_pred_bin)
-    sum_true_pred = np.sum(y_true_bin) + np.sum(y_pred_bin)
-    
-    if sum_true_pred == 0:
-        return 1.0
+    if mask_path.exists():
+        mask = load_grayscale_image(mask_path)
+        mask_bin = binarize_mask(mask, threshold=127)
+        pred_bin = binarize_mask(pred_img, threshold=127)
         
-    return (2.0 * intersection) / sum_true_pred
-
-def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str, expert_num: int) -> float | None:
-    """Busca la máscara de un experto, la carga y calcula el DICE score."""
-    # Posibles nombres para los archivos de máscaras
-    mask_patterns = [f"{img_id}_test.png",f"{img_id}_manual{expert_num}.png",f"{img_id}_manual{expert_num}.gif",]
-
-    mask_path = None
-    for pattern in mask_patterns:
-        p = expert_dir / pattern
-        if p.exists():
-            mask_path = p
-            break
-
-    if mask_path:
-        mask = keras.utils.img_to_array(keras.utils.load_img(mask_path, color_mode="grayscale"))
-        return dice_coefficient(mask, pred_img)
+        dice = float(keras.ops.convert_to_numpy(dice_coefficient(mask_bin, pred_bin)))
+        
+        return dice
 
     return None
 
@@ -43,24 +30,25 @@ def _evaluate_single_prediction(pred_path: Path, expert1_dir: Path, expert2_dir:
     base_name = pred_path.stem.replace("_pred", "")
     img_id = base_name.split("_")[0]
 
-    pred_img = keras.utils.img_to_array(keras.utils.load_img(pred_path, color_mode="grayscale"))
+    pred_img = load_grayscale_image(pred_path)
 
-    score1 = _get_expert_score(pred_img, expert1_dir, img_id, 1)
-    score2 = _get_expert_score(pred_img, expert2_dir, img_id, 2)
+    score1 = _get_expert_score(pred_img, expert1_dir, img_id)
+    score2 = _get_expert_score(pred_img, expert2_dir, img_id)
 
     return score1, score2
 
 def _print_expert_results(scores: list[float], expert_num: int):
-    """Imprime la media de DICE score para un experto."""
+    """Imprime la media de DICE para un experto."""
     if scores:
-        avg = np.mean(scores)
-        print(f"Experto {expert_num} (Media): {avg:.4f}  (Evaluado en {len(scores)} imágenes)")
+        avg_dice = np.mean(scores)
+        print(f"Experto {expert_num} (Evaluado en {len(scores)} imágenes):")
+        print(f"  - DICE Score:    {avg_dice:.4f}")
     else:
         print(f"Experto {expert_num}: No se encontraron máscaras de referencia.")
 
 def main():
     parser = argparse.ArgumentParser(description="Evaluar predicciones contra expertos.")
-    parser.add_argument("--predictions-dir", type=Path, default=PROJECT_ROOT / "artifacts/predictions_full")
+    parser.add_argument("--predictions-dir", type=Path, default=PREDICTIONS_DIR)
     parser.add_argument("--test-dir", type=Path, default=PROJECT_ROOT / "data/raw/test")
     args = parser.parse_args()
 
@@ -92,16 +80,19 @@ def main():
             scores_expert2.append(score2)
 
     print("=" * 40)
-    print("RESULTADOS DE LA EVALUACIÓN (DICE SCORE)")
+    print("RESULTADOS DE LA EVALUACIÓN CLÍNICA")
     print("=" * 40)
     
     _print_expert_results(scores_expert1, expert_num=1)
     _print_expert_results(scores_expert2, expert_num=2)
         
     if scores_expert1 and scores_expert2:
-        media_total = np.mean(scores_expert1 + scores_expert2)
+        all_scores = scores_expert1 + scores_expert2
+        media_dice = np.mean(all_scores)
+        
         print("-" * 40)
-        print(f"MEDIA GLOBAL:      {media_total:.4f}")
+        print("MÉTRICAS GLOBALES (Promedio ambos expertos)")
+        print(f"  - MEDIA DICE:          {media_dice:.4f}")
     print("=" * 40)
 
 if __name__ == "__main__":

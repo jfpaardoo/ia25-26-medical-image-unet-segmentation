@@ -51,24 +51,10 @@ class DiceCoefficient(keras.metrics.Metric):
         self.denominator.assign(0.0)
 
 
+
+
+
 @keras.saving.register_keras_serializable(package="segmentation")
-class Specificity(keras.metrics.Metric):
-    """Specificity = TN / (TN + FP)"""
-
-    def __init__(self, name: str = "specificity", **kwargs):
-        super().__init__(name=name, **kwargs)
-        self.true_negatives = keras.metrics.TrueNegatives()
-        self.false_positives = keras.metrics.FalsePositives()
-
-    def update_state(self, y_true, y_pred, sample_weight=None):
-        self.true_negatives.update_state(y_true, y_pred, sample_weight)
-        self.false_positives.update_state(y_true, y_pred, sample_weight)
-
-    def result(self):
-        tn = self.true_negatives.result()
-        fp = self.false_positives.result()
-        return tn / (tn + fp + keras.backend.epsilon())
-
-    def reset_state(self):
-        self.true_negatives.reset_state()
-        self.false_positives.reset_state()
+def bce_dice_loss(y_true, y_pred):
+    bce = keras.losses.binary_crossentropy(y_true, y_pred)
+    return 0.5 * bce + 0.5 * dice_loss(y_true, y_pred)

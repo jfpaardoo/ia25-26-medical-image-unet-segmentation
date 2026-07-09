@@ -24,12 +24,8 @@ def encoder_block(x: keras.KerasTensor, filters: int, pool_size: int = 2, **kwar
     x = conv_block(x, filters, **kwargs)
     return layers.MaxPooling2D(pool_size=(pool_size, pool_size))(x), x
 
-def decoder_block(x: keras.KerasTensor, skip: keras.KerasTensor, filters: int, use_transpose: bool = True, **kwargs) -> keras.KerasTensor:
+def decoder_block(x: keras.KerasTensor, skip: keras.KerasTensor, filters: int, **kwargs) -> keras.KerasTensor:
     """Decoder block with upsampling and skip concatenation."""
-    if use_transpose:
-        x = layers.Conv2DTranspose(filters, 2, strides=2, padding="same", kernel_initializer="he_normal")(x)
-    else:
-        x = layers.UpSampling2D(size=(2, 2))(x)
-        x = layers.Conv2D(filters, 2, padding="same", kernel_initializer="he_normal")(x)
+    x = layers.Conv2DTranspose(filters, 2, strides=2, padding="same", kernel_initializer="he_normal")(x)
     x = layers.Concatenate()([x, skip])
     return conv_block(x, filters, **kwargs)

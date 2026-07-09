@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 import keras
-from keras import layers
+
+from src.data.preprocessing import load_grayscale_image, binarize_mask
 
 
 class DataGenerator(keras.utils.Sequence):
@@ -21,7 +22,8 @@ class DataGenerator(keras.utils.Sequence):
         patch_size: tuple[int, int] = (128, 128),
         augment: bool = False,
         shuffle: bool = True,
-        seed: int = 42
+        seed: int = 42,
+        patches_per_image: int = 50,
     ):
         self.samples = samples
         self.batch_size = batch_size
@@ -29,32 +31,23 @@ class DataGenerator(keras.utils.Sequence):
         self.augment = augment
         self.shuffle = shuffle
         self.rng = np.random.default_rng(seed)
+        self.patches_per_image = patches_per_image
 
-        # Capas de aumento nativas de Keras (se usan con concatenación
-        # imagen + máscara para mantener sincronización)
-        self.flip_h = layers.RandomFlip("horizontal", seed=seed)
-        self.flip_v = layers.RandomFlip("vertical", seed=seed)
+        # Aumentos con NumPy en lugar de capas Keras para mayor velocidad en CPU
+        # (Se aplicarán en _apply_augmentation)
 
         # Cargamos imágenes en gris directo con utilidades nativas Keras
         self.images_cache = []
         self.masks_cache = []
 
         for sample in self.samples:
-            try:
-                img = keras.utils.img_to_array(
-                    keras.utils.load_img(sample.image_path, color_mode="grayscale")
-                ).astype("float32") / 255.0
-                mask = keras.utils.img_to_array(
-                    keras.utils.load_img(sample.mask_path, color_mode="grayscale")
-                )
-                mask = (mask > 0).astype("uint8")
-            except Exception:
-                continue
+            img = load_grayscale_image(sample.image_path)
+            mask = load_grayscale_image(sample.mask_path)
+            mask = binarize_mask(mask, threshold=0)
             self.images_cache.append(img)
             self.masks_cache.append(mask)
 
         # Generar un índice virtual de parches
-        self.patches_per_image = 50
         self.num_total_patches = len(self.images_cache) * self.patches_per_image
         self.indices = np.arange(self.num_total_patches)
         self.on_epoch_end()
@@ -65,7 +58,7 @@ class DataGenerator(keras.utils.Sequence):
     def __getitem__(self, index: int) -> tuple[np.ndarray, np.ndarray]:
         batch_indices = self.indices[index * self.batch_size : (index + 1) * self.batch_size]
 
-        X = np.empty((self.batch_size, *self.patch_size, 1), dtype=np.float32)
+        X = np.empty((self.batch_size, *self.patch_size, 1), dtype=np.uint8)
         y = np.empty((self.batch_size, *self.patch_size, 1), dtype=np.uint8)
 
         for i, idx in enumerate(batch_indices):
@@ -106,14 +99,14 @@ class DataGenerator(keras.utils.Sequence):
         return img_patch, mask_patch
 
     def _apply_augmentation(self, img_patch: np.ndarray, mask_patch: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Aumentos con capas nativas Keras. Se concatenan imagen y máscara en
-        canales para que el mismo flip aleatorio se aplique a ambas."""
-        combined = np.concatenate([img_patch, mask_patch.astype("float32")], axis=-1)
-        combined = self.flip_h(combined)
-        combined = self.flip_v(combined)
-        img_out = combined[..., :1]
-        mask_out = combined[..., 1:]
-        return img_out.numpy(), mask_out.numpy().astype("uint8")
+        """Aumentos con NumPy puro para evitar el cuello de botella de Keras/TensorFlow en CPU."""
+        if self.rng.random() > 0.5:
+            img_patch = np.flip(img_patch, axis=1)
+            mask_patch = np.flip(mask_patch, axis=1)
+        if self.rng.random() > 0.5:
+            img_patch = np.flip(img_patch, axis=0)
+            mask_patch = np.flip(mask_patch, axis=0)
+        return img_patch, mask_patch
 
     def on_epoch_end(self) -> None:
         if self.shuffle:
