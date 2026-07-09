@@ -5,7 +5,6 @@ from __future__ import annotations
 import keras
 from keras import ops
 
-
 @keras.saving.register_keras_serializable(package="segmentation")
 def dice_coefficient(y_true, y_pred, epsilon: float = 1e-7):
     y_true = ops.cast(y_true, "float32")
@@ -14,11 +13,9 @@ def dice_coefficient(y_true, y_pred, epsilon: float = 1e-7):
     sum_true_pred = ops.sum(y_true) + ops.sum(y_pred)
     return (2.0 * intersection + epsilon) / (sum_true_pred + epsilon)
 
-
 @keras.saving.register_keras_serializable(package="segmentation")
 def dice_loss(y_true, y_pred, epsilon: float = 1e-7):
     return 1.0 - dice_coefficient(y_true, y_pred, epsilon=epsilon)
-
 
 @keras.saving.register_keras_serializable(package="segmentation")
 class DiceCoefficient(keras.metrics.Metric):
@@ -49,10 +46,6 @@ class DiceCoefficient(keras.metrics.Metric):
     def reset_state(self):
         self.intersection.assign(0.0)
         self.denominator.assign(0.0)
-
-
-
-
 
 @keras.saving.register_keras_serializable(package="segmentation")
 def bce_dice_loss(y_true, y_pred):

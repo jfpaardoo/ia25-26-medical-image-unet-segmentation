@@ -11,7 +11,6 @@ from src.evaluation.metrics import DiceCoefficient, bce_dice_loss
 from src.models.unet import build_unet
 from src.training.callbacks import build_callbacks
 
-
 def train_model(
     train_data,
     val_data=None,

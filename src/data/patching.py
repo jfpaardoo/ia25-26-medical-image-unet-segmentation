@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 def _pad_to_fit(array: np.ndarray, patch_size: tuple[int, int], stride: tuple[int, int]) -> np.ndarray:
     """Pad array to neatly fit patch extraction."""
     h, w = array.shape[:2]
@@ -20,7 +19,6 @@ def _pad_to_fit(array: np.ndarray, patch_size: tuple[int, int], stride: tuple[in
     # We assume array is (H, W, 1)
     pad_spec = ((0, pad_h), (0, pad_w), (0, 0))
     return np.pad(array, pad_spec, mode="reflect")
-
 
 def extract_patches(image: np.ndarray, patch_size: tuple[int, int], stride: tuple[int, int], mask: np.ndarray | None = None):
     """Split an image (and optionally its mask) into aligned patches."""
@@ -48,7 +46,6 @@ def extract_patches(image: np.ndarray, patch_size: tuple[int, int], stride: tupl
         positions,
         (padded_h, padded_w),
     )
-
 
 def reconstruct_from_patches(patches: list | np.ndarray, positions: list[tuple[int, int]], output_shape: tuple[int, int]):
     """Reconstruct a 2D array from patches using overlap averaging."""

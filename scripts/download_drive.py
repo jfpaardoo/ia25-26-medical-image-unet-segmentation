@@ -69,7 +69,6 @@ def main() -> None:
 
     print(f"\nÉxito: {total_images} imágenes procesadas estrictamente bajo el formato DRIVE y guardadas en {RAW_DIR}")
 
-
 if __name__ == "__main__":
     if str(REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(REPO_ROOT))

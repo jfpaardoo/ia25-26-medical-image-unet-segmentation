@@ -6,8 +6,6 @@ import numpy as np
 import keras
 
 from src.data.preprocessing import load_grayscale_image, binarize_mask
-
-
 class DataGenerator(keras.utils.Sequence):
     """Generador de datos para Keras que lee de disco, parchea y aumenta imágenes sobre la marcha.
 
