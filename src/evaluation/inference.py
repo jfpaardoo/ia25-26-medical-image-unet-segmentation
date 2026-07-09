@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import keras
 
-from .metrics import DiceCoefficient, Specificity, dice_coefficient, dice_loss, bce_dice_loss
+from .metrics import DiceCoefficient, dice_coefficient, dice_loss, bce_dice_loss
 
 
 def load_model(model_path: Path | str, compile: bool = False) -> keras.Model:
@@ -16,7 +16,6 @@ def load_model(model_path: Path | str, compile: bool = False) -> keras.Model:
         "dice_loss": dice_loss,
         "bce_dice_loss": bce_dice_loss,
         "DiceCoefficient": DiceCoefficient,
-        "Specificity": Specificity,
     }
     return keras.saving.load_model(str(model_path), compile=compile, custom_objects=custom_objects)
 

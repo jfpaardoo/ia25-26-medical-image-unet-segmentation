@@ -10,8 +10,8 @@ from src.config import PROJECT_ROOT, PREDICTIONS_DIR
 from src.evaluation.metrics import dice_coefficient
 from src.data.preprocessing import load_grayscale_image, binarize_mask
 
-def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str) -> tuple[float, float, float] | None:
-    """Busca la máscara de un experto, la carga y calcula DICE, Sensibilidad y Especificidad."""
+def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str) -> float | None:
+    """Busca la máscara de un experto, la carga y calcula DICE."""
     mask_path = expert_dir / f"{img_id}_test.png"
     
     if mask_path.exists():
@@ -21,20 +21,11 @@ def _get_expert_score(pred_img: np.ndarray, expert_dir: Path, img_id: str) -> tu
         
         dice = float(keras.ops.convert_to_numpy(dice_coefficient(mask_bin, pred_bin)))
         
-        # Calcular TP, TN, FP, FN usando numpy para métricas adicionales
-        tp = np.sum((mask_bin == 1) & (pred_bin == 1))
-        tn = np.sum((mask_bin == 0) & (pred_bin == 0))
-        fp = np.sum((mask_bin == 0) & (pred_bin == 1))
-        fn = np.sum((mask_bin == 1) & (pred_bin == 0))
-        
-        sensitivity = tp / (tp + fn + 1e-7)
-        specificity = tn / (tn + fp + 1e-7)
-        
-        return dice, sensitivity, specificity
+        return dice
 
     return None
 
-def _evaluate_single_prediction(pred_path: Path, expert1_dir: Path, expert2_dir: Path) -> tuple[tuple[float, float, float] | None, tuple[float, float, float] | None]:
+def _evaluate_single_prediction(pred_path: Path, expert1_dir: Path, expert2_dir: Path) -> tuple[float | None, float | None]:
     """Evalúa una sola imagen de predicción contra ambos expertos."""
     base_name = pred_path.stem.replace("_pred", "")
     img_id = base_name.split("_")[0]
@@ -46,16 +37,12 @@ def _evaluate_single_prediction(pred_path: Path, expert1_dir: Path, expert2_dir:
 
     return score1, score2
 
-def _print_expert_results(scores: list[tuple[float, float, float]], expert_num: int):
-    """Imprime la media de DICE, Sensibilidad y Especificidad para un experto."""
+def _print_expert_results(scores: list[float], expert_num: int):
+    """Imprime la media de DICE para un experto."""
     if scores:
-        avg_dice = np.mean([s[0] for s in scores])
-        avg_sens = np.mean([s[1] for s in scores])
-        avg_spec = np.mean([s[2] for s in scores])
+        avg_dice = np.mean(scores)
         print(f"Experto {expert_num} (Evaluado en {len(scores)} imágenes):")
         print(f"  - DICE Score:    {avg_dice:.4f}")
-        print(f"  - Sensibilidad:  {avg_sens:.4f}")
-        print(f"  - Especificidad: {avg_spec:.4f}")
     else:
         print(f"Experto {expert_num}: No se encontraron máscaras de referencia.")
 
@@ -101,15 +88,11 @@ def main():
         
     if scores_expert1 and scores_expert2:
         all_scores = scores_expert1 + scores_expert2
-        media_dice = np.mean([s[0] for s in all_scores])
-        media_sens = np.mean([s[1] for s in all_scores])
-        media_spec = np.mean([s[2] for s in all_scores])
+        media_dice = np.mean(all_scores)
         
         print("-" * 40)
         print("MÉTRICAS GLOBALES (Promedio ambos expertos)")
         print(f"  - MEDIA DICE:          {media_dice:.4f}")
-        print(f"  - MEDIA SENSIBILIDAD:  {media_sens:.4f}")
-        print(f"  - MEDIA ESPECIFICIDAD: {media_spec:.4f}")
     print("=" * 40)
 
 if __name__ == "__main__":

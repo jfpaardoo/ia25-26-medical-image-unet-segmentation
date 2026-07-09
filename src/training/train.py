@@ -7,7 +7,7 @@ from typing import Any, Optional
 import keras
 
 from src.config import PROJECT_ROOT, CHECKPOINTS_DIR, LOGS_DIR
-from src.evaluation.metrics import DiceCoefficient, Specificity, bce_dice_loss
+from src.evaluation.metrics import DiceCoefficient, bce_dice_loss
 from src.models.unet import build_unet
 from src.training.callbacks import build_callbacks
 
@@ -54,9 +54,6 @@ def train_model(
         loss=bce_dice_loss,
         metrics=[
             DiceCoefficient(name="dice"),
-            keras.metrics.BinaryIoU(target_class_ids=[1], name="iou"),
-            keras.metrics.Recall(name="sensitivity"),
-            Specificity(name="specificity"),
         ],
     )
 

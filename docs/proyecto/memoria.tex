@@ -103,23 +103,6 @@ DICE = \frac{2 |X \cap Y| + \epsilon}{|X| + |Y| + \epsilon} = \frac{2 \cdot TP}{
 \end{equation}
 donde $TP$ denota los Verdaderos Positivos, $FP$ los Falsos Positivos y $FN$ los Falsos Negativos. A nivel de ingeniería, se ha implementado mediante la clase especializada \texttt{DiceCoefficient} (heredando de \texttt{keras.metrics.Metric}) diseñada para acumular el estado interno a lo largo de múltiples lotes y ofrecer promedios reales por época.
 
-\textbf{2) Intersección sobre la Unión (IoU o Índice de Jaccard):} Métrica fundacional estrechamente ligada al coeficiente Dice, que calcula la proporción más rigurosa de la intersección exacta respecto al área total combinada de ambas máscaras:
-\begin{equation}
-IoU = \frac{|X \cap Y| + \epsilon}{|X \cup Y| + \epsilon} = \frac{TP}{TP + FP + FN}
-\end{equation}
-
-\textbf{3) Sensibilidad (\textit{Recall}):} Cuantifica la proporción real de vasos sanguíneos existentes que el modelo logró detectar exitosamente. Es una métrica crítica en diagnósticos clínicos porque prioriza la minimización absoluta de los errores de omisión (reducir los Falsos Negativos), garantizando que no se ignoren zonas potencialmente enfermas:
-\begin{equation}
-\text{Sensibilidad} = \frac{TP}{TP + FN}
-\end{equation}
-
-\textbf{4) Especificidad (\textit{Specificity}):} Evalúa la capacidad analítica inversa: la habilidad de clasificar correctamente el vasto fondo retiniano sano. Una alta especificidad es indispensable para evitar que el algoritmo genere ramificaciones fantasma o clasifique destellos ópticos como estructuras venosas (Falsos Positivos):
-\begin{equation}
-\text{Especificidad} = \frac{TN}{TN + FP}
-\end{equation}
-
-\textbf{Justificación del Diagnóstico Algorítmico:} Aunque el Coeficiente DICE es la métrica principal y determinante para la evaluación del proyecto, se ha incorporado de forma explícita el cálculo de las métricas adicionales mencionadas anteriormente. El motivo de esta decisión radica en la necesidad de dotar al sistema de herramientas de diagnóstico algorítmico interno. Mientras que el DICE proporciona una visión global del rendimiento, la Sensibilidad y Especificidad permiten medir de forma aislada la capacidad del modelo para no pasar por alto capilares reales y evitar inventar falsas estructuras vasculares, respectivamente. Esto proporciona una visibilidad analítica crucial sobre el comportamiento de la red frente al profundo desbalance paramétrico del 85\% frente al 15\% que caracteriza a estas muestras biomédicas.
-
 \section{Metodología e Implementación}
 
 \subsection{Obtención Automatizada y Búsqueda de Datos}
@@ -141,8 +124,6 @@ Dadas las irregularidades extremas en la adquisición fotográfica (alteraciones
     \caption{Diagrama secuencial del preprocesamiento: la señal a color sufre una conversión a escala de grises, seguida de un redimensionado paramétrico y una normalización escalar exhaustiva al rango probabilístico $[0, 1]$.}
     \label{fig:preprocessing}
 \end{figure}
-
-
 
 \subsection{Estrategia de Fragmentación Dual (\textit{Patching})}
 El mayor riesgo técnico al entrenar arquitecturas profundas sobre bases de datos médicas extremadamente limitadas (apenas 20 imágenes de entrenamiento) es el sobreajuste o \textit{overfitting}. Si el modelo viera la imagen completa reiteradamente de forma idéntica, terminaría por memorizar las topologías exactas. Para evitarlo proactivamente, se emplea una técnica matemática dual de \textbf{\textit{Patching}}. 
@@ -276,8 +257,6 @@ El riguroso proceso de certificación predictiva del modelo se materializó al r
 Una vez finalizado el entrenamiento y la validación cruzada (5-Fold), el modelo fue evaluado de forma automatizada sobre el conjunto de prueba (imágenes de la carpeta \texttt{artifacts/predictions/}). Los resultados obtenidos superan satisfactoriamente los requisitos establecidos para el proyecto.
 
 En particular, la arquitectura U-Net ha conseguido un sobresaliente \textbf{Coeficiente DICE medio global de 0.8326} al compararse con las segmentaciones manuales de los expertos médicos. Desglosando este resultado, el modelo alcanzó un rendimiento de \textbf{0.8216} frente a las delineaciones del Experto 1, y un \textbf{0.8435} contra las del Experto 2. Estos valores superan con amplio margen el umbral mínimo exigido ($>0.75$), demostrando que el algoritmo despliega una precisión en la detección de vasos sanguíneos plenamente comparable a la concordancia natural que existe entre distintos especialistas humanos.
-
-De forma adicional, el análisis de las métricas de diagnóstico (\textbf{Sensibilidad} y \textbf{Especificidad}) corrobora la enorme solidez de la red neuronal. Se ha obtenido una \textbf{Especificidad media de 0.9845}, lo cual certifica de forma contundente que el modelo es excepcional evitando Falsos Positivos; es decir, tiene un margen de error del $\approx$ 1.5\% a la hora de confundir tejido de fondo sano con vasos sanguíneos. Por otra parte, la \textbf{Sensibilidad media alcanza un 0.8338}, un valor notable considerando la dificultad intrínseca de recuperar las microestructuras de 1 píxel de grosor, demostrando que el modelo ha aprendido a localizar la inmensa mayoría de las topologías vasculares reales, minimizando los Falsos Negativos.
 
 \begin{figure}[htbp]
     \centering
