@@ -7,7 +7,6 @@ from typing import Any
 
 import json
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 MODELS_DIR = PROJECT_ROOT / "models"
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
@@ -17,7 +16,6 @@ CHECKPOINTS_DIR = MODELS_DIR / "checkpoints"
 FINAL_MODELS_DIR = MODELS_DIR / "final"
 LOGS_DIR = ARTIFACTS_DIR / "logs"
 PREDICTIONS_DIR = ARTIFACTS_DIR / "predictions"
-
 
 def load_json_config(config_path: Path) -> dict[str, Any]:
 	"""Load a JSON config file into a dictionary."""

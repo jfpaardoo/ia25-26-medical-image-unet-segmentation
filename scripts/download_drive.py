@@ -13,6 +13,9 @@ KAGGLE_ID = "zionfuo/drive2004"
 
 def _binarize_and_save(src_path: Path, dst_path: Path) -> None:
     """Abre la máscara .gif esperada, la binariza a 0/255 y la guarda como .png."""
+    # Los archivos .gif originales suelen tener paletas de colores o varios frames que dan problemas en Keras.
+    # Al leerlos y forzar una matriz binaria (0 y 255), nos aseguramos de que el modelo aprenda 
+    # de un "ground truth" completamente limpio.
     if not src_path.exists():
         return
     dst_path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,7 +71,6 @@ def main() -> None:
             total_images += 1
 
     print(f"\nÉxito: {total_images} imágenes procesadas estrictamente bajo el formato DRIVE y guardadas en {RAW_DIR}")
-
 
 if __name__ == "__main__":
     if str(REPO_ROOT) not in sys.path:

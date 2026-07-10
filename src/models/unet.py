@@ -24,7 +24,12 @@ def build_unet(
         final_activation = "sigmoid" if num_classes == 1 else "softmax"
 
     inputs = layers.Input(shape=input_shape)
+    # Normalización integrada en el modelo: comprime el rango de intensidad de los píxeles (0-255)
+    # al rango [0, 1]. Integrarlo aquí permite que el modelo en producción reciba imágenes crudas.
     x = layers.Rescaling(1.0 / 255.0)(inputs)
+    
+    # Lista para almacenar los mapas de características de la ruta de contracción (Encoder).
+    # Estos mapas de alta resolución se inyectarán en la ruta de expansión (Decoder) usando Skip Connections.
     skips: list[keras.KerasTensor] = []
     filters = base_filters
 

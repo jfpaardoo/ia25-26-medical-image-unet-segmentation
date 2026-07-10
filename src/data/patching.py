@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import numpy as np
 
-
 def _pad_to_fit(array: np.ndarray, patch_size: tuple[int, int], stride: tuple[int, int]) -> np.ndarray:
     """Pad array to neatly fit patch extraction."""
     h, w = array.shape[:2]
@@ -17,10 +16,11 @@ def _pad_to_fit(array: np.ndarray, patch_size: tuple[int, int], stride: tuple[in
     pad_h = max(out_h - h, 0)
     pad_w = max(out_w - w, 0)
     
-    # We assume array is (H, W, 1)
+    # Se asume que el array es (Alto, Ancho, 1). 
+    # Se utiliza el modo "reflect" (efecto espejo) en lugar de rellenar con ceros (negro) para que 
+    # en los márgenes la red no detecte un borde falso o artefacto que perjudique la segmentación.
     pad_spec = ((0, pad_h), (0, pad_w), (0, 0))
     return np.pad(array, pad_spec, mode="reflect")
-
 
 def extract_patches(image: np.ndarray, patch_size: tuple[int, int], stride: tuple[int, int], mask: np.ndarray | None = None):
     """Split an image (and optionally its mask) into aligned patches."""
@@ -49,7 +49,6 @@ def extract_patches(image: np.ndarray, patch_size: tuple[int, int], stride: tupl
         (padded_h, padded_w),
     )
 
-
 def reconstruct_from_patches(patches: list | np.ndarray, positions: list[tuple[int, int]], output_shape: tuple[int, int]):
     """Reconstruct a 2D array from patches using overlap averaging."""
     patch_arr = np.asarray(patches)
@@ -62,6 +61,9 @@ def reconstruct_from_patches(patches: list | np.ndarray, positions: list[tuple[i
     accum = np.zeros((max_bottom, max_right, 1), dtype=np.float32)
     count = np.zeros((max_bottom, max_right, 1), dtype=np.float32)
 
+    # Acumulamos las probabilidades de todos los recortes. 
+    # En las zonas de solapamiento, el contador (count) nos dirá entre cuántos fragmentos dividir el píxel.
+    # Al final, dividimos para sacar el promedio y logramos difuminar las "costuras" entre parches.
     for idx, (top, left) in enumerate(positions):
         accum[top : top + ph, left : left + pw, ...] += patch_arr[idx].astype(np.float32)
         count[top : top + ph, left : left + pw, ...] += 1.0

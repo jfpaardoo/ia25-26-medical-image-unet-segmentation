@@ -6,7 +6,6 @@ from pathlib import Path
 
 import keras
 
-
 def build_callbacks(
     checkpoints_dir: Path,
     logs_dir: Path,

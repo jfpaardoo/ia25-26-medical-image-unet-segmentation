@@ -11,7 +11,6 @@ from src.evaluation.metrics import DiceCoefficient, bce_dice_loss
 from src.models.unet import build_unet
 from src.training.callbacks import build_callbacks
 
-
 def train_model(
     train_data,
     val_data=None,
@@ -49,6 +48,8 @@ def train_model(
         monitor=monitor_metric
     )
 
+    # El optimizador Adam ajusta dinámicamente el ratio de aprendizaje, siendo idóneo para imagen médica.
+    # La pérdida híbrida bce_dice_loss asegura precisión en los bordes y estabilidad ante el desequilibrio de clases.
     model.compile(
         optimizer=keras.optimizers.Adam(learning_rate=float(training_cfg.get("learning_rate", 1e-4))),
         loss=bce_dice_loss,
