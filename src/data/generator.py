@@ -98,6 +98,8 @@ class DataGenerator(keras.utils.Sequence):
 
     def _apply_augmentation(self, img_patch: np.ndarray, mask_patch: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Aumentos con NumPy puro para evitar el cuello de botella de Keras/TensorFlow en CPU."""
+        # Aplicamos solo giros especulares (flips). Evitamos rotaciones con ángulos libres porque 
+        # requerirían interpolación, lo que difumina y destruye los capilares de un solo píxel de grosor.
         if self.rng.random() > 0.5:
             img_patch = np.flip(img_patch, axis=1)
             mask_patch = np.flip(mask_patch, axis=1)

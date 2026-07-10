@@ -49,5 +49,7 @@ class DiceCoefficient(keras.metrics.Metric):
 
 @keras.saving.register_keras_serializable(package="segmentation")
 def bce_dice_loss(y_true, y_pred):
+    # Combinamos Entropía Cruzada Binaria (BCE) para lograr estabilidad en la convergencia a nivel de píxel
+    # y Dice Loss para combatir el fuerte desequilibrio de clases (los vasos ocupan poco porcentaje de la imagen).
     bce = keras.losses.binary_crossentropy(y_true, y_pred)
     return 0.5 * bce + 0.5 * dice_loss(y_true, y_pred)

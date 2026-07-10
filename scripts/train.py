@@ -40,8 +40,9 @@ def main() -> None:
     seed = config.get("project", {}).get("seed", 42)
     set_random_seed(seed)
     
-    # K-Fold Cross Validation con k=5 (recomendado por el profesor)
-    # Como tenemos 20 imágenes, 4 serán para validación y 16 para entrenamiento en cada fold
+    # Validación cruzada (K-Fold, k=5)
+    # Al tener un dataset pequeño (20 fotos de entreno), rotamos los conjuntos para entrenar con 16 
+    # y validar con 4 distintas cada vez. Así aseguramos que el modelo generalice bien y no memorice.
     kf = KFold(n_splits=5, shuffle=True, random_state=seed)
 
     final_models_dir = config.get("outputs", {}).get("final_model_dir", FINAL_MODELS_DIR)
