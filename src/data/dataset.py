@@ -32,14 +32,14 @@ def discover_drive_samples(root_dir: Path | str, split: str = "training") -> lis
     root = Path(root_dir)
     images_dir = root / split / "images"
     
-    masks_dir = root / split / "masks"
+    masks_dir_name = "masks_expert1" if split == "test" else "masks"
+    masks_dir = root / split / masks_dir_name
     mask_ext = ".png"
     
     if not images_dir.exists() or not masks_dir.exists():
         raise FileNotFoundError(
-            f"No se encuentra el dataset en {root}. "
-            "Asegúrate de haber descargado la base de datos DRIVE 2004 y que sus carpetas "
-            "tengan la estructura correcta (e.g. data/raw/training/images y data/raw/training/masks)."
+            f"No se encuentra el dataset o las carpetas necesarias en {root}/{split}. "
+            f"Asegúrate de haber descargado el dataset y de tener '{images_dir.name}' y '{masks_dir.name}'."
         )
         
     samples = []
