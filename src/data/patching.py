@@ -63,7 +63,7 @@ def reconstruct_from_patches(patches: list | np.ndarray, positions: list[tuple[i
 
     # Acumulamos las probabilidades de todos los recortes. 
     # En las zonas de solapamiento, el contador (count) nos dirá entre cuántos fragmentos dividir el píxel.
-    # Al final, dividimos para sacar el promedio y logramos difuminar las "costuras" entre parches.
+    # Al final, dividimos para sacar el promedio y logramos difuminar los cortes entre parches.
     for idx, (top, left) in enumerate(positions):
         accum[top : top + ph, left : left + pw, ...] += patch_arr[idx].astype(np.float32)
         count[top : top + ph, left : left + pw, ...] += 1.0

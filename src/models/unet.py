@@ -46,7 +46,7 @@ def build_unet(
 
     # La capa final de la U-Net usa típicamente una función de activación Sigmoide
     # cuando se trata de una clasificación binaria (como segmentar vaso vs fondo).
-    # La sigmoide aplasta los valores de salida entre 0 y 1, permitiendo interpretar
+    # La sigmoide acota los valores de salida entre 0 y 1, permitiendo interpretar
     # el resultado como una probabilidad para cada píxel de pertenecer a la clase positiva.
     outputs = layers.Conv2D(
         num_classes,

@@ -16,11 +16,11 @@ def discover_drive_samples(root_dir: Path | str, split: str = "training") -> lis
     El dataset DRIVE 2004 está estructurado de la siguiente forma:
     - training/
         - images/ (imágenes originales .tif)
-        - 1st_manual/ (máscaras de segmentación .gif)
+        - masks/ (máscaras de segmentación .png)
     - test/
         - images/ (imágenes originales .tif)
-        - 1st_manual/ (máscaras de segmentación del primer experto .gif)
-        - 2nd_manual/ (máscaras del segundo experto - opcional)
+        - masks_expert1/ (máscaras de segmentación del primer experto .png)
+        - masks_expert2/ (máscaras del segundo experto - opcional)
     
     Args:
         root_dir: Directorio base de los datos (ej: data/raw)
